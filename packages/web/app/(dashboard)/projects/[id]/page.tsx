@@ -721,7 +721,8 @@ export default function ProjectDetailPage() {
         <EditProjectDialog
           project={project}
           onSave={(updatedProject) => {
-            setProject(updatedProject);
+            // Merge updated fields with existing project to preserve all properties
+            setProject({ ...project, ...updatedProject });
             setShowEditDialog(false);
           }}
           onClose={() => setShowEditDialog(false)}

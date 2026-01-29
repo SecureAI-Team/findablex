@@ -41,6 +41,9 @@ packages/web/.next/
 packages/web/out/
 packages/web/node_modules/
 
+# Keep Next.js lib directory (override lib/ rule above)
+!packages/web/lib/
+
 # Testing
 .coverage
 htmlcov/
@@ -100,4 +103,3 @@ logs/
 *.pyd
 .Python
 pip-log.txt
-pip-delete-this-directory.txt

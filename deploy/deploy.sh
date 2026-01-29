@@ -233,8 +233,25 @@ create_directories() {
 deploy_app() {
     log_step "部署应用..."
     
-    # 复制部署文件
-    if [[ -d "${SCRIPT_DIR}" ]]; then
+    # 获取项目根目录 (deploy 目录的父目录)
+    PROJECT_ROOT="$(dirname "${SCRIPT_DIR}")"
+    
+    # 复制整个项目（Docker 构建需要访问 packages 目录）
+    if [[ -d "${PROJECT_ROOT}/packages" ]]; then
+        log_info "复制项目文件到 ${DEPLOY_DIR}..."
+        
+        # 复制必要的目录和文件
+        cp -r "${PROJECT_ROOT}/packages" "${DEPLOY_DIR}/"
+        cp -r "${PROJECT_ROOT}/docker" "${DEPLOY_DIR}/" 2>/dev/null || true
+        cp -r "${SCRIPT_DIR}"/* "${DEPLOY_DIR}/"
+        
+        # 复制根目录配置文件
+        cp "${PROJECT_ROOT}/env.example" "${DEPLOY_DIR}/" 2>/dev/null || true
+        
+        log_info "项目文件复制完成"
+    elif [[ -d "${SCRIPT_DIR}" ]]; then
+        # 如果没有 packages 目录，可能是从 Git 克隆的完整仓库
+        log_warn "未找到 packages 目录，尝试使用当前目录结构"
         cp -r "${SCRIPT_DIR}"/* "${DEPLOY_DIR}/"
     else
         log_error "找不到部署文件目录"

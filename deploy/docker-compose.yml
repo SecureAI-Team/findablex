@@ -5,8 +5,6 @@
 # 注意: 基础镜像使用阿里云镜像加速，需要在服务器上配置 Docker daemon:
 # /etc/docker/daemon.json 中添加 registry-mirrors
 
-version: '3.8'
-
 services:
   # ===========================================
   # PostgreSQL Database
@@ -68,8 +66,8 @@ services:
   # ===========================================
   api:
     build:
-      context: ../packages/api
-      dockerfile: ../../deploy/Dockerfile.api
+      context: ./packages/api
+      dockerfile: ../../Dockerfile.api
     image: findablex/api:${VERSION:-latest}
     container_name: findablex-api
     restart: unless-stopped
@@ -130,8 +128,8 @@ services:
   # ===========================================
   web:
     build:
-      context: ../packages/web
-      dockerfile: ../../deploy/Dockerfile.web
+      context: ./packages/web
+      dockerfile: ../../Dockerfile.web
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
     image: findablex/web:${VERSION:-latest}

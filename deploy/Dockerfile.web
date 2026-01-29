@@ -5,7 +5,7 @@
 # ===========================================
 # Dependencies Stage
 # ===========================================
-FROM registry.cn-hangzhou.aliyuncs.com/library/node:20-alpine AS deps
+FROM node:20-alpine AS deps
 
 # 配置阿里云 Alpine apk 镜像源
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
@@ -31,7 +31,7 @@ RUN \
 # ===========================================
 # Builder Stage
 # ===========================================
-FROM registry.cn-hangzhou.aliyuncs.com/library/node:20-alpine AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -55,7 +55,7 @@ RUN npm run build
 # ===========================================
 # Runner Stage
 # ===========================================
-FROM registry.cn-hangzhou.aliyuncs.com/library/node:20-alpine AS runner
+FROM node:20-alpine AS runner
 
 WORKDIR /app
 

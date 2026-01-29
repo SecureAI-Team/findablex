@@ -96,8 +96,8 @@ function LoginForm() {
       </div>
 
       {/* Right Panel - Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
-        <div className="w-full max-w-md">
+      <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-8">
+        <div className="w-full max-w-md flex-1 flex flex-col justify-center">
           {/* Mobile Logo */}
           <div className="lg:hidden text-center mb-8">
             <Link href="/" className="inline-flex items-center gap-2">
@@ -244,8 +244,8 @@ function LoginForm() {
           </form>
         </div>
 
-        {/* ICP */}
-        <div className="mt-8 text-center">
+        {/* ICP - Fixed at bottom */}
+        <div className="w-full max-w-md mt-8 text-center pb-4">
           <a
             href="https://beian.miit.gov.cn/"
             target="_blank"

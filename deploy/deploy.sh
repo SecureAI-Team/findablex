@@ -165,7 +165,16 @@ configure_docker_mirror() {
     
     mkdir -p /etc/docker
     
-    # 配置阿里云镜像加速器
+    # 检查是否已有 daemon.json 配置
+    if [[ -f /etc/docker/daemon.json ]]; then
+        # 检查是否已配置了镜像加速器
+        if grep -q "registry-mirrors" /etc/docker/daemon.json; then
+            log_info "检测到已有镜像加速器配置，跳过覆盖"
+            return 0
+        fi
+    fi
+    
+    # 只有在没有配置时才创建默认配置
     cat > /etc/docker/daemon.json << 'EOF'
 {
   "registry-mirrors": [

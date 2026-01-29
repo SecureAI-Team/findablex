@@ -1,9 +1,9 @@
 # FindableX API Dockerfile
 # Includes Playwright for browser-based crawling
 # Optimized for Ubuntu 24.04 LTS / Debian-based systems
-# 配合 Docker daemon 镜像加速器使用
+# 使用 DaoCloud 镜像加速
 
-FROM python:3.11-slim-bookworm AS base
+FROM docker.m.daocloud.io/library/python:3.11-slim AS base
 
 # Prevent Python from writing bytecode and buffering stdout/stderr
 ENV PYTHONDONTWRITEBYTECODE=1 \

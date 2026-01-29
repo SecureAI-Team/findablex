@@ -3,7 +3,8 @@
 # Optimized for Ubuntu 24.04 LTS / Debian-based systems
 # 使用阿里云镜像加速
 
-FROM python:3.11-slim-bookworm AS base
+# 使用阿里云容器镜像服务
+FROM registry.cn-hangzhou.aliyuncs.com/library/python:3.11-slim-bookworm AS base
 
 # Prevent Python from writing bytecode and buffering stdout/stderr
 ENV PYTHONDONTWRITEBYTECODE=1 \

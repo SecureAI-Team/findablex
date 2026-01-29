@@ -10,7 +10,7 @@ services:
   # PostgreSQL Database
   # ===========================================
   postgres:
-    image: postgres:16-alpine
+    image: docker.m.daocloud.io/library/postgres:16-alpine
     container_name: findablex-db
     restart: unless-stopped
     environment:
@@ -38,7 +38,7 @@ services:
   # Redis Cache & Message Queue
   # ===========================================
   redis:
-    image: redis:7-alpine
+    image: docker.m.daocloud.io/library/redis:7-alpine
     container_name: findablex-redis
     restart: unless-stopped
     command: >
@@ -157,7 +157,7 @@ services:
   # findablex.com - 47.121.136.144
   # ===========================================
   nginx:
-    image: nginx:alpine
+    image: docker.m.daocloud.io/library/nginx:alpine
     container_name: findablex-nginx
     restart: unless-stopped
     ports:

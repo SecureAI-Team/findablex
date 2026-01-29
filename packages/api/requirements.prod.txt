@@ -1,0 +1,21 @@
+# Production dependencies for FindableX API
+# These are in addition to requirements.txt
+
+# PostgreSQL support (required for production)
+asyncpg>=0.29.0
+psycopg2-binary>=2.9.9
+
+# Redis support (for caching and message queue)
+redis>=5.0.1
+
+# Production ASGI server with workers
+gunicorn>=21.2.0
+
+# Celery for background tasks (optional)
+celery>=5.3.0
+
+# Monitoring (optional)
+prometheus-client>=0.19.0
+
+# Sentry for error tracking (optional)
+# sentry-sdk>=1.39.0

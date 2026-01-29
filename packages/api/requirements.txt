@@ -1,0 +1,44 @@
+# FastAPI & Server
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.6
+
+# Database
+sqlalchemy[asyncio]>=2.0.25
+aiosqlite>=0.19.0
+alembic>=1.13.1
+# PostgreSQL (optional, not needed for lite mode)
+# asyncpg>=0.29.0
+# psycopg2-binary>=2.9.9
+
+# Redis (optional, not needed for lite mode)
+# redis>=5.0.1
+
+# Authentication
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+
+# Validation & Serialization
+pydantic>=2.5.3
+pydantic-settings>=2.1.0
+email-validator>=2.1.0
+
+# HTTP Client
+httpx>=0.26.0
+
+# AI/LLM (optional)
+# openai>=1.9.0
+
+# Utilities
+python-dotenv>=1.0.0
+tenacity>=8.2.3
+orjson>=3.9.10
+
+# Rate Limiting
+slowapi>=0.1.9
+
+# Logging
+structlog>=24.1.0
+
+# Encryption
+cryptography>=41.0.0

@@ -1,0 +1,21 @@
+{
+  "name": "FindableX - GEO 体检平台",
+  "short_name": "FindableX",
+  "description": "专业的 GEO 体检平台，监测和优化您的品牌在 AI 生成式搜索引擎中的可见性。",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#38bdf8",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}

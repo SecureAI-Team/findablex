@@ -1,0 +1,8 @@
+[project]
+name = "geo-types"
+version = "0.1.0"
+description = "Shared types for FindableX"
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+include = ["geo_types*"]

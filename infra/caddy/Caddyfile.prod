@@ -1,0 +1,44 @@
+# Production Caddyfile
+{
+    email admin@yourdomain.com
+}
+
+yourdomain.com {
+    # API routes
+    handle /api/* {
+        reverse_proxy api:8000
+    }
+    
+    # WebSocket for real-time updates
+    handle /ws/* {
+        reverse_proxy api:8000
+    }
+    
+    # Static files
+    handle /uploads/* {
+        root * /srv
+        file_server
+    }
+    
+    # Frontend
+    handle {
+        reverse_proxy web:3000
+    }
+    
+    # Security headers
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy strict-origin-when-cross-origin
+        -Server
+    }
+    
+    # Logging
+    log {
+        output file /var/log/caddy/access.log {
+            roll_size 100mb
+            roll_keep 5
+        }
+    }
+}

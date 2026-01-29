@@ -1,0 +1,93 @@
+# FindableX Web Dockerfile
+# Next.js production build with standalone output
+# 使用阿里云镜像加速
+
+# ===========================================
+# Dependencies Stage
+# ===========================================
+FROM node:20-alpine AS deps
+
+# 配置阿里云 Alpine apk 镜像源
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+
+RUN apk add --no-cache libc6-compat
+
+WORKDIR /app
+
+# 配置阿里云 npm 镜像源
+RUN npm config set registry https://registry.npmmirror.com
+
+# Copy package files
+COPY package.json package-lock.json* yarn.lock* pnpm-lock.yaml* ./
+
+# Install dependencies based on lock file
+RUN \
+  if [ -f yarn.lock ]; then yarn config set registry https://registry.npmmirror.com && yarn --frozen-lockfile; \
+  elif [ -f package-lock.json ]; then npm ci; \
+  elif [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm config set registry https://registry.npmmirror.com && pnpm i --frozen-lockfile; \
+  else npm install; \
+  fi
+
+# ===========================================
+# Builder Stage
+# ===========================================
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy dependencies
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# Build arguments for environment variables
+ARG NEXT_PUBLIC_API_URL=/api
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+
+# Disable telemetry
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Enable standalone output
+ENV NEXT_OUTPUT=standalone
+
+# Build Next.js app
+RUN npm run build
+
+# ===========================================
+# Runner Stage
+# ===========================================
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+# Set production environment
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+# Copy public assets
+COPY --from=builder /app/public ./public
+
+# Set up directory for Next.js cache
+RUN mkdir .next && chown nextjs:nodejs .next
+
+# Copy standalone build
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Switch to non-root user
+USER nextjs
+
+# Expose port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD wget --spider -q http://localhost:3000 || exit 1
+
+# Start the application
+CMD ["node", "server.js"]

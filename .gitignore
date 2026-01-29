@@ -1,0 +1,103 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.cursor/
+
+# Next.js
+packages/web/.next/
+packages/web/out/
+packages/web/node_modules/
+
+# Testing
+.coverage
+htmlcov/
+.tox/
+.nox/
+.pytest_cache/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Docker
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env.local
+.env.*.local
+*.pem
+*.key
+secrets/
+
+# SSL Certificates (private keys)
+infra/certs/*.key
+infra/certs/*.pem
+
+# Local data directories
+packages/api/data/
+**/data/findablex.db
+**/data/screenshots/
+**/data/sessions/
+**/data/uploads/
+**/data/browser_profiles/
+
+# Uploads and data
+uploads/
+backups/
+crawler_data/
+*.sql.gz
+
+# Alembic
+alembic/versions/__pycache__/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Logs
+logs/
+*.log
+
+# Build artifacts
+*.pyc
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt

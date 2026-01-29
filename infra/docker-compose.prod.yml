@@ -1,0 +1,152 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: findablex-db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  redis:
+    image: redis:7-alpine
+    container_name: findablex-redis
+    restart: always
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  api:
+    image: ${REGISTRY:-findablex}/findablex-api:${VERSION:-latest}
+    container_name: findablex-api
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET=${JWT_SECRET}
+      - QWEN_API_KEY=${QWEN_API_KEY}
+      - ENV=production
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  worker:
+    image: ${REGISTRY:-findablex}/findablex-worker:${VERSION:-latest}
+    container_name: findablex-worker
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - QWEN_API_KEY=${QWEN_API_KEY}
+      - ENV=production
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      - postgres
+      - redis
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 2G
+    command: celery -A app.celery_app worker --loglevel=warning --concurrency=4
+
+  beat:
+    image: ${REGISTRY:-findablex}/findablex-worker:${VERSION:-latest}
+    container_name: findablex-beat
+    restart: always
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/1
+    depends_on:
+      - redis
+    deploy:
+      replicas: 1
+    command: celery -A app.celery_app beat --loglevel=warning
+
+  crawler:
+    image: ${REGISTRY:-findablex}/findablex-crawler:${VERSION:-latest}
+    container_name: findablex-crawler
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      - REDIS_URL=redis://redis:6379/0
+      - PROXY_POOL_URL=${PROXY_POOL_URL}
+    volumes:
+      - crawler_data:/app/data
+    depends_on:
+      - postgres
+      - redis
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 4G
+
+  web:
+    image: ${REGISTRY:-findablex}/findablex-web:${VERSION:-latest}
+    container_name: findablex-web
+    restart: always
+    environment:
+      - NEXT_PUBLIC_API_URL=${API_URL}
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 512M
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: findablex-caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile.prod:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - web
+
+volumes:
+  pg_data:
+  redis_data:
+  uploads:
+  crawler_data:
+  caddy_data:
+  caddy_config:

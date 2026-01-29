@@ -1,0 +1,33 @@
+# Browser Automation
+playwright==1.41.0
+
+# Async
+asyncio==3.4.3
+aiohttp==3.9.1
+
+# Database
+sqlalchemy[asyncio]==2.0.25
+asyncpg==0.29.0
+psycopg2-binary==2.9.9
+
+# Redis
+redis==5.0.1
+
+# HTTP Client
+httpx==0.26.0
+
+# Validation
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# Utilities
+python-dotenv==1.0.0
+tenacity==8.2.3
+orjson==3.9.10
+
+# Parsing
+beautifulsoup4==4.12.3
+lxml==5.1.0
+
+# Logging
+structlog==24.1.0

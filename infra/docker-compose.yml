@@ -1,0 +1,169 @@
+version: '3.8'
+
+services:
+  # === Database ===
+  postgres:
+    image: postgres:16-alpine
+    container_name: findablex-db
+    environment:
+      POSTGRES_USER: ${DB_USER:-findablex}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-devpassword}
+      POSTGRES_DB: ${DB_NAME:-findablex}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-findablex}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # === Cache & Message Queue ===
+  redis:
+    image: redis:7-alpine
+    container_name: findablex-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # === API Server ===
+  api:
+    build:
+      context: ../packages/api
+      dockerfile: ../../docker/api/Dockerfile
+    container_name: findablex-api
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER:-findablex}:${DB_PASSWORD:-devpassword}@postgres:5432/${DB_NAME:-findablex}
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-prod}
+      - QWEN_API_KEY=${QWEN_API_KEY:-}
+      - ENV=development
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8000}
+    volumes:
+      - ../packages/api:/app
+      - uploads:/app/uploads
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # === Celery Worker ===
+  worker:
+    build:
+      context: ../packages/worker
+      dockerfile: ../../docker/worker/Dockerfile
+    container_name: findablex-worker
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER:-findablex}:${DB_PASSWORD:-devpassword}@postgres:5432/${DB_NAME:-findablex}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - QWEN_API_KEY=${QWEN_API_KEY:-}
+      - ENV=development
+    volumes:
+      - ../packages/worker:/app
+      - ../packages/shared/python:/app/shared
+      - uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=2
+
+  # === Celery Beat (Scheduler) ===
+  beat:
+    build:
+      context: ../packages/worker
+      dockerfile: ../../docker/worker/Dockerfile
+    container_name: findablex-beat
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/1
+    depends_on:
+      - redis
+      - worker
+    command: celery -A app.celery_app beat --loglevel=info
+
+  # === Crawler Service (Optional in dev) ===
+  crawler:
+    build:
+      context: ../packages/crawler
+      dockerfile: ../../docker/crawler/Dockerfile
+    container_name: findablex-crawler
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER:-findablex}:${DB_PASSWORD:-devpassword}@postgres:5432/${DB_NAME:-findablex}
+      - REDIS_URL=redis://redis:6379/0
+      - PROXY_POOL_URL=${PROXY_POOL_URL:-}
+    volumes:
+      - ../packages/crawler:/app
+      - crawler_data:/app/data
+    depends_on:
+      - postgres
+      - redis
+    profiles:
+      - crawler
+
+  # === Web Frontend ===
+  web:
+    build:
+      context: ../packages/web
+      dockerfile: ../../docker/web/Dockerfile
+    container_name: findablex-web
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NODE_ENV=development
+    volumes:
+      - ../packages/web:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "3000:3000"
+    command: npm run dev
+
+  # === Reverse Proxy ===
+  caddy:
+    image: caddy:2-alpine
+    container_name: findablex-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile.dev:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - web
+
+  # === Monitoring (Optional) ===
+  flower:
+    image: mher/flower:2.0
+    container_name: findablex-flower
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/1
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+    profiles:
+      - monitoring
+
+volumes:
+  pg_data:
+  redis_data:
+  uploads:
+  crawler_data:
+  caddy_data:
+  caddy_config:

@@ -8,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Eye, EyeOff, Loader2, Mail, Lock, ArrowLeft } from 'lucide-react';
 import { api } from '@/lib/api';
+import { analytics } from '@/lib/analytics';
 
 const loginSchema = z.object({
   email: z.string().email('请输入有效的邮箱地址'),
@@ -53,6 +54,9 @@ function LoginForm() {
       if (response.data.refresh_token) {
         storage.setItem('refresh_token', response.data.refresh_token);
       }
+
+      // Track login event
+      analytics.trackLogin();
 
       router.push(redirectTo);
     } catch (err: any) {

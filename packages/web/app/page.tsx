@@ -19,7 +19,7 @@ import {
   Users,
   TrendingDown,
 } from 'lucide-react';
-import { Header, Footer, FeatureCard, StepCard, PricingCard, FAQAccordion } from '@/components';
+import { Header, Footer, FeatureCard, StepCard, PricingCard, FAQAccordion, PageViewTracker } from '@/components';
 import { generateFAQSchema, generateSoftwareAppSchema, generateServiceSchema, generateBreadcrumbSchema, JsonLd } from '@/lib/seo';
 import { Metadata } from 'next';
 
@@ -231,6 +231,9 @@ export default function HomePage() {
       <JsonLd data={generateBreadcrumbSchema([
         { name: '首页', url: '/' },
       ])} />
+      
+      {/* 页面浏览追踪 */}
+      <PageViewTracker pageName="landing_page" properties={{ page_type: 'marketing' }} />
 
       <div className="min-h-screen bg-slate-900">
         <Header />

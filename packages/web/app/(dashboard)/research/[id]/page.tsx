@@ -22,6 +22,7 @@ import {
   Download,
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { analytics, EVENTS } from '@/lib/analytics';
 import { clsx } from 'clsx';
 
 interface CrawlTask {
@@ -112,10 +113,23 @@ export default function CrawlTaskDetailPage() {
   const fetchTask = async () => {
     try {
       const res = await api.get(`/crawler/tasks/${taskId}`);
+      const prevStatus = task?.status;
       setTask(res.data);
       
       // Fetch results if completed
       if (res.data.status === 'completed') {
+        // Track first crawl completed when task transitions to completed
+        if (prevStatus && prevStatus !== 'completed') {
+          analytics.track(EVENTS.FIRST_CRAWL_COMPLETED, {
+            properties: {
+              task_id: taskId,
+              engine: res.data.engine,
+              total_queries: res.data.total_queries,
+              successful_queries: res.data.successful_queries,
+            },
+          });
+        }
+        
         try {
           const resultsRes = await api.get(`/crawler/tasks/${taskId}/results`);
           setResults(resultsRes.data || []);

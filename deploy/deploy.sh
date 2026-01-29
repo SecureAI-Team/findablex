@@ -236,8 +236,19 @@ deploy_app() {
     # 获取项目根目录 (deploy 目录的父目录)
     PROJECT_ROOT="$(dirname "${SCRIPT_DIR}")"
     
+    # 检查是否已经在完整项目目录中运行（通过 git clone 到 /opt/findablex）
+    if [[ "${PROJECT_ROOT}" == "${DEPLOY_DIR}" ]] || [[ "$(realpath "${PROJECT_ROOT}")" == "$(realpath "${DEPLOY_DIR}")" ]]; then
+        log_info "检测到已在项目目录中运行，跳过文件复制"
+        
+        # 确保 deploy 目录下的文件可被访问
+        if [[ ! -f "${DEPLOY_DIR}/docker-compose.yml" ]] && [[ -f "${SCRIPT_DIR}/docker-compose.yml" ]]; then
+            # 创建软链接或复制 deploy 目录内容到根目录
+            cp "${SCRIPT_DIR}"/*.yml "${DEPLOY_DIR}/" 2>/dev/null || true
+            cp "${SCRIPT_DIR}"/*.conf "${DEPLOY_DIR}/" 2>/dev/null || true
+            cp "${SCRIPT_DIR}"/Dockerfile.* "${DEPLOY_DIR}/" 2>/dev/null || true
+        fi
     # 复制整个项目（Docker 构建需要访问 packages 目录）
-    if [[ -d "${PROJECT_ROOT}/packages" ]]; then
+    elif [[ -d "${PROJECT_ROOT}/packages" ]]; then
         log_info "复制项目文件到 ${DEPLOY_DIR}..."
         
         # 复制必要的目录和文件
@@ -250,7 +261,7 @@ deploy_app() {
         
         log_info "项目文件复制完成"
     elif [[ -d "${SCRIPT_DIR}" ]]; then
-        # 如果没有 packages 目录，可能是从 Git 克隆的完整仓库
+        # 如果没有 packages 目录，可能是单独上传的 deploy 目录
         log_warn "未找到 packages 目录，尝试使用当前目录结构"
         cp -r "${SCRIPT_DIR}"/* "${DEPLOY_DIR}/"
     else
@@ -258,11 +269,18 @@ deploy_app() {
         exit 1
     fi
     
-    # 检查环境变量文件
-    if [[ ! -f "${DEPLOY_DIR}/.env" ]]; then
-        if [[ -f "${DEPLOY_DIR}/.env.example" ]]; then
-            cp "${DEPLOY_DIR}/.env.example" "${DEPLOY_DIR}/.env"
-            log_warn "已创建 .env 文件，请编辑配置: ${DEPLOY_DIR}/.env"
+    # 检查环境变量文件（在 deploy 子目录或根目录）
+    ENV_FILE="${DEPLOY_DIR}/.env"
+    if [[ ! -f "${ENV_FILE}" ]]; then
+        # 也检查 deploy 子目录
+        if [[ -f "${DEPLOY_DIR}/deploy/.env" ]]; then
+            ENV_FILE="${DEPLOY_DIR}/deploy/.env"
+        elif [[ -f "${DEPLOY_DIR}/.env.example" ]]; then
+            cp "${DEPLOY_DIR}/.env.example" "${ENV_FILE}"
+            log_warn "已创建 .env 文件，请编辑配置: ${ENV_FILE}"
+        elif [[ -f "${DEPLOY_DIR}/deploy/.env.example" ]]; then
+            cp "${DEPLOY_DIR}/deploy/.env.example" "${ENV_FILE}"
+            log_warn "已创建 .env 文件，请编辑配置: ${ENV_FILE}"
         else
             create_env_file
         fi
@@ -312,11 +330,26 @@ EOF
     log_warn "请编辑配置文件: ${DEPLOY_DIR}/.env"
 }
 
+# ============ 获取 docker-compose 文件路径 ============
+get_compose_file() {
+    if [[ -f "${DEPLOY_DIR}/docker-compose.yml" ]]; then
+        echo "${DEPLOY_DIR}/docker-compose.yml"
+    elif [[ -f "${DEPLOY_DIR}/deploy/docker-compose.yml" ]]; then
+        echo "${DEPLOY_DIR}/deploy/docker-compose.yml"
+    else
+        log_error "找不到 docker-compose.yml 文件"
+        exit 1
+    fi
+}
+
 # ============ 构建镜像 ============
 build_images() {
     log_step "构建 Docker 镜像..."
     
-    cd "${DEPLOY_DIR}"
+    COMPOSE_FILE=$(get_compose_file)
+    COMPOSE_DIR=$(dirname "${COMPOSE_FILE}")
+    
+    cd "${COMPOSE_DIR}"
     
     # 构建镜像
     docker compose build --no-cache
@@ -328,7 +361,10 @@ build_images() {
 start_services() {
     log_step "启动服务..."
     
-    cd "${DEPLOY_DIR}"
+    COMPOSE_FILE=$(get_compose_file)
+    COMPOSE_DIR=$(dirname "${COMPOSE_FILE}")
+    
+    cd "${COMPOSE_DIR}"
     
     # 启动所有服务
     docker compose up -d
@@ -347,7 +383,10 @@ start_services() {
 stop_services() {
     log_step "停止服务..."
     
-    cd "${DEPLOY_DIR}"
+    COMPOSE_FILE=$(get_compose_file)
+    COMPOSE_DIR=$(dirname "${COMPOSE_FILE}")
+    
+    cd "${COMPOSE_DIR}"
     docker compose down
     
     log_info "服务已停止"
@@ -355,7 +394,10 @@ stop_services() {
 
 # ============ 查看日志 ============
 view_logs() {
-    cd "${DEPLOY_DIR}"
+    COMPOSE_FILE=$(get_compose_file)
+    COMPOSE_DIR=$(dirname "${COMPOSE_FILE}")
+    
+    cd "${COMPOSE_DIR}"
     
     if [[ -n "${1:-}" ]]; then
         docker compose logs -f "$1"
@@ -370,7 +412,10 @@ backup_data() {
     
     BACKUP_FILE="${BACKUP_DIR}/findablex_$(date '+%Y%m%d_%H%M%S').tar.gz"
     
-    cd "${DEPLOY_DIR}"
+    COMPOSE_FILE=$(get_compose_file)
+    COMPOSE_DIR=$(dirname "${COMPOSE_FILE}")
+    
+    cd "${COMPOSE_DIR}"
     
     # 备份数据库
     docker compose exec -T postgres pg_dump -U findablex findablex > "${BACKUP_DIR}/db_backup.sql"
@@ -392,7 +437,10 @@ backup_data() {
 show_status() {
     log_step "服务状态..."
     
-    cd "${DEPLOY_DIR}"
+    COMPOSE_FILE=$(get_compose_file)
+    COMPOSE_DIR=$(dirname "${COMPOSE_FILE}")
+    
+    cd "${COMPOSE_DIR}"
     docker compose ps
     
     echo ""
@@ -425,11 +473,33 @@ update_app() {
     log_info "更新完成"
 }
 
+# ============ 清理并重新部署 ============
+clean_deploy() {
+    log_step "清理并重新部署..."
+    
+    # 停止服务
+    stop_services 2>/dev/null || true
+    
+    # 清理旧镜像
+    docker system prune -f
+    
+    # 重新构建
+    build_images
+    
+    # 启动服务
+    start_services
+    
+    log_info "重新部署完成"
+}
+
 # ============ 初始化数据库 ============
 init_database() {
     log_step "初始化数据库..."
     
-    cd "${DEPLOY_DIR}"
+    COMPOSE_FILE=$(get_compose_file)
+    COMPOSE_DIR=$(dirname "${COMPOSE_FILE}")
+    
+    cd "${COMPOSE_DIR}"
     
     # 等待数据库就绪
     log_info "等待数据库就绪..."
@@ -450,11 +520,16 @@ print('Database tables created successfully')
 install_ssl() {
     log_step "安装 SSL 证书..."
     
+    COMPOSE_FILE=$(get_compose_file)
+    COMPOSE_DIR=$(dirname "${COMPOSE_FILE}")
+    
     if ! command -v certbot &> /dev/null; then
         apt-get install -y certbot
     fi
     
     read -p "请输入域名: " DOMAIN
+    
+    cd "${COMPOSE_DIR}"
     
     # 停止 nginx 以释放 80 端口
     docker compose stop nginx 2>/dev/null || true
@@ -467,7 +542,7 @@ install_ssl() {
     cp /etc/letsencrypt/live/"$DOMAIN"/privkey.pem "${DATA_DIR}/ssl/"
     
     # 设置自动续期
-    echo "0 0 1 * * root certbot renew --quiet && cp /etc/letsencrypt/live/$DOMAIN/*.pem ${DATA_DIR}/ssl/ && docker compose -f ${DEPLOY_DIR}/docker-compose.yml restart nginx" > /etc/cron.d/certbot-renewal
+    echo "0 0 1 * * root certbot renew --quiet && cp /etc/letsencrypt/live/$DOMAIN/*.pem ${DATA_DIR}/ssl/ && docker compose -f ${COMPOSE_FILE} restart nginx" > /etc/cron.d/certbot-renewal
     
     # 重启 nginx
     docker compose start nginx

@@ -16,6 +16,7 @@ import {
   X,
   CreditCard,
   Shield,
+  BarChart3,
 } from 'lucide-react';
 import { api, logout } from '@/lib/api';
 import { clsx } from 'clsx';
@@ -31,6 +32,7 @@ const navigation = [
 ];
 
 const adminNavigation = [
+  { name: '数据分析', href: '/admin/analytics', icon: BarChart3 },
   { name: '审计日志', href: '/admin/audit', icon: Shield },
 ];
 

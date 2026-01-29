@@ -3614,7 +3614,40 @@ async def run_lite_crawler_task(
     queries: List[Dict[str, str]],
     config: Optional[Dict[str, Any]] = None,
 ):
-    """Run a crawler task in the background."""
+    """
+    Run a crawler task in the background.
+    
+    Priority:
+    1. API mode (if enabled and API key available) - no browser needed
+    2. Browser mode (if Playwright available)
+    3. Mock mode (fallback)
+    """
+    # Check if API mode should be used
+    try:
+        from app.config import dynamic
+        from app.services.api_crawler import APICrawlerService, WEB_TO_API_ENGINE_MAP
+        
+        api_mode_enabled = await dynamic.get("crawler.api_mode_enabled", True)
+        api_engines = await dynamic.get("crawler.api_mode_engines", 
+                                        ["deepseek", "qwen", "kimi", "perplexity", "chatgpt"])
+        
+        # Check if this engine supports API mode
+        if api_mode_enabled and engine in api_engines:
+            api_service = APICrawlerService()
+            try:
+                # Check if API key is configured
+                if await api_service.is_api_available(engine):
+                    logger.info(f"[Crawler] Using API mode for engine {engine}")
+                    await run_api_crawler_task(task_id, engine, queries, config)
+                    return
+                else:
+                    logger.info(f"[Crawler] API key not configured for {engine}, falling back to browser mode")
+            finally:
+                await api_service.close()
+    except Exception as e:
+        logger.warning(f"[Crawler] Failed to check API mode: {e}, falling back to browser mode")
+    
+    # Fall back to browser mode
     if not PLAYWRIGHT_AVAILABLE:
         # Fallback to mock mode when playwright is not installed
         logger.warning(f"[LiteCrawler] Playwright not installed, running in mock mode for task {task_id}")
@@ -3626,6 +3659,123 @@ async def run_lite_crawler_task(
         await service.execute_task(task_id, engine, queries, config)
     finally:
         await service.close()
+
+
+async def run_api_crawler_task(
+    task_id: UUID,
+    engine: str,
+    queries: List[Dict[str, str]],
+    config: Optional[Dict[str, Any]] = None,
+):
+    """Run a crawler task using API mode (no browser needed)."""
+    from app.services.api_crawler import APICrawlerService
+    
+    config = config or {}
+    enable_web_search = config.get("enable_web_search", True)
+    
+    logger.info(f"[APICrawler] Starting API task {task_id} with {len(queries)} queries on {engine}")
+    
+    async with async_session_maker() as db:
+        # Update task to running
+        result = await db.execute(
+            select(CrawlTask).where(CrawlTask.id == task_id)
+        )
+        task = result.scalar_one_or_none()
+        if task:
+            task.status = "running"
+            task.started_at = datetime.now(timezone.utc)
+            await db.commit()
+        
+        successful = 0
+        failed = 0
+        
+        # Create API crawler service
+        api_service = APICrawlerService(db)
+        
+        try:
+            for idx, query_info in enumerate(queries):
+                query_text = query_info.get("query_text", "")
+                query_id = query_info.get("query_id")
+                
+                logger.info(f"[APICrawler] Processing query {idx + 1}/{len(queries)}: {query_text[:50]}...")
+                
+                try:
+                    # Execute query via API
+                    api_result = await api_service.execute_query(
+                        engine_name=engine,
+                        question=query_text,
+                        workspace_id=None,  # TODO: Get from task/project
+                        enable_web_search=enable_web_search,
+                    )
+                    
+                    if api_result["success"]:
+                        # Save successful result
+                        crawl_result = CrawlResult(
+                            task_id=task_id,
+                            query_item_id=UUID(query_id) if query_id else None,
+                            engine=f"{engine}_api",  # Mark as API mode
+                            raw_html="",  # No HTML in API mode
+                            parsed_response={
+                                "query_text": query_text,
+                                "response_text": api_result["response_text"],
+                                "model": api_result["model"],
+                                "tokens_used": api_result["tokens_used"],
+                                "error": None,
+                            },
+                            citations=api_result["citations"],
+                            response_time_ms=api_result["response_time_ms"],
+                            is_complete=True,
+                            has_citations=len(api_result["citations"]) > 0,
+                        )
+                        db.add(crawl_result)
+                        successful += 1
+                        logger.info(f"[APICrawler] Query successful, got {len(api_result['citations'])} citations")
+                    else:
+                        # Save failed result
+                        crawl_result = CrawlResult(
+                            task_id=task_id,
+                            query_item_id=UUID(query_id) if query_id else None,
+                            engine=f"{engine}_api",
+                            raw_html="",
+                            parsed_response={
+                                "query_text": query_text,
+                                "response_text": "",
+                                "error": api_result["error"],
+                            },
+                            citations=[],
+                            is_complete=False,
+                            has_citations=False,
+                        )
+                        db.add(crawl_result)
+                        failed += 1
+                        logger.warning(f"[APICrawler] Query failed: {api_result['error']}")
+                    
+                    # Small delay between requests to respect rate limits
+                    if idx < len(queries) - 1:
+                        await asyncio.sleep(1.0)
+                        
+                except Exception as e:
+                    logger.error(f"[APICrawler] Exception processing query: {e}")
+                    failed += 1
+                
+                # Update task progress
+                if task:
+                    task.successful_queries = successful
+                    task.failed_queries = failed
+                    await db.commit()
+            
+            # Update final task status
+            if task:
+                task.status = "completed"
+                task.completed_at = datetime.now(timezone.utc)
+                task.successful_queries = successful
+                task.failed_queries = failed
+                await db.commit()
+            
+            logger.info(f"[APICrawler] Task {task_id} completed: {successful} successful, {failed} failed")
+            
+        finally:
+            await api_service.close()
 
 
 async def run_mock_crawler_task(

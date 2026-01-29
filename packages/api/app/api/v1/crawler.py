@@ -52,15 +52,15 @@ class CrawlTaskResponse(BaseModel):
 
 
 SUPPORTED_ENGINES = [
-    {"id": "perplexity", "name": "Perplexity", "priority": "P0", "method": "Web + API"},
-    {"id": "google_sge", "name": "Google SGE/AI Overview", "priority": "P0", "method": "Web Automation"},
-    {"id": "bing_copilot", "name": "Bing Copilot", "priority": "P1", "method": "Web Automation"},
-    {"id": "qwen", "name": "Qwen (通义千问)", "priority": "P0", "method": "Web + API"},
-    {"id": "deepseek", "name": "DeepSeek", "priority": "P0", "method": "Web Automation"},
-    {"id": "kimi", "name": "Kimi", "priority": "P1", "method": "Web Automation"},
-    {"id": "doubao", "name": "豆包 (Doubao)", "priority": "P1", "method": "Web Automation"},
-    {"id": "chatglm", "name": "ChatGLM (智谱清言)", "priority": "P1", "method": "Web Automation"},
-    {"id": "chatgpt", "name": "ChatGPT", "priority": "P0", "method": "Web Automation"},
+    {"id": "perplexity", "name": "Perplexity", "priority": "P0", "method": "API", "api_supported": True},
+    {"id": "google_sge", "name": "Google SGE/AI Overview", "priority": "P0", "method": "Web", "api_supported": False},
+    {"id": "bing_copilot", "name": "Bing Copilot", "priority": "P1", "method": "Web", "api_supported": False},
+    {"id": "qwen", "name": "通义千问 (Qwen)", "priority": "P0", "method": "API", "api_supported": True},
+    {"id": "deepseek", "name": "DeepSeek", "priority": "P0", "method": "API", "api_supported": True},
+    {"id": "kimi", "name": "Kimi", "priority": "P1", "method": "API", "api_supported": True},
+    {"id": "doubao", "name": "豆包 (Doubao)", "priority": "P1", "method": "Web", "api_supported": False},
+    {"id": "chatglm", "name": "ChatGLM (智谱清言)", "priority": "P1", "method": "Web", "api_supported": False},
+    {"id": "chatgpt", "name": "ChatGPT", "priority": "P0", "method": "API", "api_supported": True},
 ]
 
 

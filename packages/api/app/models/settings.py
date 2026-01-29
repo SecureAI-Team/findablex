@@ -232,6 +232,30 @@ DEFAULT_SETTINGS = [
         "description": "OpenAI 默认模型",
     },
     {
+        "key": "ai.deepseek_api_key",
+        "category": "ai",
+        "value": None,
+        "value_type": "string",
+        "is_secret": True,
+        "description": "DeepSeek API Key",
+    },
+    {
+        "key": "ai.kimi_api_key",
+        "category": "ai",
+        "value": None,
+        "value_type": "string",
+        "is_secret": True,
+        "description": "Kimi (Moonshot) API Key",
+    },
+    {
+        "key": "ai.perplexity_api_key",
+        "category": "ai",
+        "value": None,
+        "value_type": "string",
+        "is_secret": True,
+        "description": "Perplexity API Key",
+    },
+    {
         "key": "ai.user_can_provide_key",
         "category": "ai",
         "value": True,
@@ -272,6 +296,22 @@ DEFAULT_SETTINGS = [
         "value_type": "string",
         "is_secret": True,
         "description": "代理池 URL",
+    },
+    {
+        "key": "crawler.api_mode_enabled",
+        "category": "crawler",
+        "value": True,
+        "value_type": "boolean",
+        "is_secret": False,
+        "description": "优先使用 API 模式（无需浏览器）",
+    },
+    {
+        "key": "crawler.api_mode_engines",
+        "category": "crawler",
+        "value": ["deepseek", "qwen", "kimi", "perplexity", "chatgpt"],
+        "value_type": "json",
+        "is_secret": False,
+        "description": "支持 API 模式的引擎列表",
     },
     
     # Limits settings

@@ -132,7 +132,7 @@ class AnalyticsService:
         query = select(AuditLog).where(
             and_(
                 AuditLog.user_id == user_id,
-                AuditLog.entity_type == "event",
+                AuditLog.resource_type == "event",
             )
         )
         
@@ -153,7 +153,7 @@ class AnalyticsService:
         query = select(
             AuditLog.action,
             func.count(AuditLog.id)
-        ).where(AuditLog.entity_type == "event")
+        ).where(AuditLog.resource_type == "event")
         
         if start_date:
             query = query.where(AuditLog.created_at >= start_date)

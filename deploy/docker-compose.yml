@@ -66,8 +66,8 @@ services:
   # ===========================================
   api:
     build:
-      context: ./packages/api
-      dockerfile: ../../Dockerfile.api
+      context: ../packages/api
+      dockerfile: ../../deploy/Dockerfile.api
     image: findablex/api:${VERSION:-latest}
     container_name: findablex-api
     restart: unless-stopped
@@ -128,8 +128,8 @@ services:
   # ===========================================
   web:
     build:
-      context: ./packages/web
-      dockerfile: ../../Dockerfile.web
+      context: ../packages/web
+      dockerfile: ../../deploy/Dockerfile.web
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
     image: findablex/web:${VERSION:-latest}

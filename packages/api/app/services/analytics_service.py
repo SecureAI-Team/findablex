@@ -253,8 +253,7 @@ class AnalyticsService:
             days: 统计天数
             tz_offset_hours: 时区偏移（小时），默认 8 表示 UTC+8（中国时区）
         """
-        from sqlalchemy import cast, Date, distinct, text
-        from sqlalchemy.dialects.postgresql import JSONB
+        from sqlalchemy import distinct
         
         # 使用用户时区计算时间范围
         tz_offset = timedelta(hours=tz_offset_hours)
@@ -302,13 +301,10 @@ class AnalyticsService:
         dau_result = await self.db.execute(dau_query)
         today_dau = dau_result.scalar() or 0
         
-        # PostgreSQL 时区转换表达式
-        tz_interval = f"{tz_offset_hours} hours"
-        
-        # 按日统计 PV 趋势（使用用户时区进行分组）
-        daily_pv_query = select(
-            func.date_trunc('day', AuditLog.created_at + text(f"interval '{tz_interval}'")).label('date'),
-            func.count(AuditLog.id).label('pv'),
+        # 获取所有 page_view 事件用于按日统计（兼容 SQLite 和 PostgreSQL）
+        events_query = select(
+            AuditLog.created_at,
+            AuditLog.user_id,
         ).where(
             and_(
                 AuditLog.action == "page_view",
@@ -316,44 +312,28 @@ class AnalyticsService:
                 AuditLog.created_at >= start_date,
                 AuditLog.created_at <= end_date,
             )
-        ).group_by(
-            func.date_trunc('day', AuditLog.created_at + text(f"interval '{tz_interval}'"))
-        ).order_by(
-            func.date_trunc('day', AuditLog.created_at + text(f"interval '{tz_interval}'"))
         )
-        daily_pv_result = await self.db.execute(daily_pv_query)
-        daily_pv = [
-            {"date": row.date.strftime("%Y-%m-%d") if row.date else None, "pv": row.pv}
-            for row in daily_pv_result
-        ]
+        events_result = await self.db.execute(events_query)
+        events = list(events_result)
         
-        # 按日统计 UV 趋势
-        daily_uv_query = select(
-            func.date_trunc('day', AuditLog.created_at + text(f"interval '{tz_interval}'")).label('date'),
-            func.count(distinct(AuditLog.user_id)).label('uv'),
-        ).where(
-            and_(
-                AuditLog.action == "page_view",
-                AuditLog.resource_type == "event",
-                AuditLog.user_id.isnot(None),
-                AuditLog.created_at >= start_date,
-                AuditLog.created_at <= end_date,
-            )
-        ).group_by(
-            func.date_trunc('day', AuditLog.created_at + text(f"interval '{tz_interval}'"))
-        ).order_by(
-            func.date_trunc('day', AuditLog.created_at + text(f"interval '{tz_interval}'"))
-        )
-        daily_uv_result = await self.db.execute(daily_uv_query)
-        daily_uv = [
-            {"date": row.date.strftime("%Y-%m-%d") if row.date else None, "uv": row.uv}
-            for row in daily_uv_result
-        ]
+        # 在 Python 中按日统计（兼容所有数据库）
+        from collections import defaultdict
+        daily_pv_dict: Dict[str, int] = defaultdict(int)
+        daily_uv_dict: Dict[str, set] = defaultdict(set)
         
-        # 按日统计 DAU 趋势 (有登录或访问行为的用户)
-        daily_dau_query = select(
-            func.date_trunc('day', AuditLog.created_at + text(f"interval '{tz_interval}'")).label('date'),
-            func.count(distinct(AuditLog.user_id)).label('dau'),
+        for event in events:
+            if event.created_at:
+                # 转换到用户时区
+                event_local = event.created_at + tz_offset if event.created_at.tzinfo is None else event.created_at.replace(tzinfo=timezone.utc) + tz_offset
+                date_str = event_local.strftime("%Y-%m-%d")
+                daily_pv_dict[date_str] += 1
+                if event.user_id:
+                    daily_uv_dict[date_str].add(str(event.user_id))
+        
+        # 获取所有活跃事件用于 DAU 统计
+        dau_events_query = select(
+            AuditLog.created_at,
+            AuditLog.user_id,
         ).where(
             and_(
                 AuditLog.action.in_(["login", "page_view"]),
@@ -362,47 +342,56 @@ class AnalyticsService:
                 AuditLog.created_at >= start_date,
                 AuditLog.created_at <= end_date,
             )
-        ).group_by(
-            func.date_trunc('day', AuditLog.created_at + text(f"interval '{tz_interval}'"))
-        ).order_by(
-            func.date_trunc('day', AuditLog.created_at + text(f"interval '{tz_interval}'"))
         )
-        daily_dau_result = await self.db.execute(daily_dau_query)
-        daily_dau = [
-            {"date": row.date.strftime("%Y-%m-%d") if row.date else None, "dau": row.dau}
-            for row in daily_dau_result
-        ]
+        dau_events_result = await self.db.execute(dau_events_query)
+        dau_events = list(dau_events_result)
+        
+        daily_dau_dict: Dict[str, set] = defaultdict(set)
+        for event in dau_events:
+            if event.created_at and event.user_id:
+                event_local = event.created_at + tz_offset if event.created_at.tzinfo is None else event.created_at.replace(tzinfo=timezone.utc) + tz_offset
+                date_str = event_local.strftime("%Y-%m-%d")
+                daily_dau_dict[date_str].add(str(event.user_id))
+        
+        # 转换为列表格式
+        all_dates = sorted(set(daily_pv_dict.keys()) | set(daily_uv_dict.keys()) | set(daily_dau_dict.keys()))
+        daily_pv = [{"date": d, "pv": daily_pv_dict.get(d, 0)} for d in all_dates]
+        daily_uv = [{"date": d, "uv": len(daily_uv_dict.get(d, set()))} for d in all_dates]
+        daily_dau = [{"date": d, "dau": len(daily_dau_dict.get(d, set()))} for d in all_dates]
         
         # 计算平均值
         avg_daily_pv = round(total_pv / max(days, 1), 1)
         avg_daily_uv = round(total_uv / max(days, 1), 1) if daily_uv else 0
         avg_daily_dau = round(sum(d["dau"] for d in daily_dau) / max(len(daily_dau), 1), 1) if daily_dau else 0
         
-        # 热门页面
-        top_pages_query = select(
-            AuditLog.new_values['properties']['page_name'].label('page_name'),
-            func.count(AuditLog.id).label('count'),
-        ).where(
-            and_(
-                AuditLog.action == "page_view",
-                AuditLog.resource_type == "event",
-                AuditLog.created_at >= start_date,
-                AuditLog.created_at <= end_date,
-            )
-        ).group_by(
-            AuditLog.new_values['properties']['page_name']
-        ).order_by(
-            func.count(AuditLog.id).desc()
-        ).limit(10)
-        
+        # 热门页面 - 使用 Python 处理 JSON 解析（兼容 SQLite）
+        top_pages: List[Dict[str, Any]] = []
         try:
+            top_pages_query = select(
+                AuditLog.new_values,
+            ).where(
+                and_(
+                    AuditLog.action == "page_view",
+                    AuditLog.resource_type == "event",
+                    AuditLog.created_at >= start_date,
+                    AuditLog.created_at <= end_date,
+                )
+            )
             top_pages_result = await self.db.execute(top_pages_query)
-            top_pages = [
-                {"page": row.page_name or "unknown", "count": row.count}
-                for row in top_pages_result
-            ]
+            
+            page_counts: Dict[str, int] = defaultdict(int)
+            for row in top_pages_result:
+                if row.new_values and isinstance(row.new_values, dict):
+                    props = row.new_values.get('properties', {})
+                    if isinstance(props, dict):
+                        page_name = props.get('page_name', 'unknown')
+                        page_counts[page_name] += 1
+            
+            # 排序并取前 10
+            sorted_pages = sorted(page_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+            top_pages = [{"page": page, "count": count} for page, count in sorted_pages]
         except Exception:
-            # JSONB 查询可能失败，返回空列表
+            # 查询失败时返回空列表
             top_pages = []
         
         return {

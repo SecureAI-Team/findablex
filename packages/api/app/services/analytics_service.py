@@ -394,6 +394,39 @@ class AnalyticsService:
             # 查询失败时返回空列表
             top_pages = []
         
+        # 流量来源统计
+        traffic_sources: List[Dict[str, Any]] = []
+        try:
+            sources_query = select(
+                AuditLog.new_values,
+            ).where(
+                and_(
+                    AuditLog.action == "page_view",
+                    AuditLog.resource_type == "event",
+                    AuditLog.created_at >= start_date,
+                    AuditLog.created_at <= end_date,
+                )
+            )
+            sources_result = await self.db.execute(sources_query)
+            
+            source_counts: Dict[str, int] = defaultdict(int)
+            for row in sources_result:
+                if row.new_values and isinstance(row.new_values, dict):
+                    props = row.new_values.get('properties', {})
+                    if isinstance(props, dict):
+                        referrer = props.get('referrer', '')
+                        user_agent = props.get('user_agent', '')
+                        
+                        # 分析来源
+                        source = self._categorize_traffic_source(referrer, user_agent)
+                        source_counts[source] += 1
+            
+            # 排序并取前 10
+            sorted_sources = sorted(source_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+            traffic_sources = [{"source": src, "count": cnt} for src, cnt in sorted_sources]
+        except Exception:
+            traffic_sources = []
+        
         return {
             "summary": {
                 "total_pv": total_pv,
@@ -409,6 +442,132 @@ class AnalyticsService:
                 "daily_dau": daily_dau,
             },
             "top_pages": top_pages,
+            "traffic_sources": traffic_sources,
             "period_days": days,
             "timezone_offset": tz_offset_hours,
         }
+    
+    def _categorize_traffic_source(self, referrer: str, user_agent: str) -> str:
+        """
+        分类流量来源
+        
+        Args:
+            referrer: HTTP Referer
+            user_agent: User Agent 字符串
+        
+        Returns:
+            来源分类名称
+        """
+        # 先检查是否是爬虫/机器人
+        ua_lower = (user_agent or '').lower()
+        
+        # 常见爬虫标识
+        bot_patterns = [
+            ('googlebot', 'Google 爬虫'),
+            ('bingbot', 'Bing 爬虫'),
+            ('baiduspider', '百度爬虫'),
+            ('yandexbot', 'Yandex 爬虫'),
+            ('duckduckbot', 'DuckDuckGo 爬虫'),
+            ('slurp', 'Yahoo 爬虫'),
+            ('sogou', '搜狗爬虫'),
+            ('360spider', '360 爬虫'),
+            ('bytespider', '字节爬虫'),
+            ('gptbot', 'GPTBot'),
+            ('chatgpt', 'ChatGPT'),
+            ('claudebot', 'Claude'),
+            ('anthropic', 'Anthropic'),
+            ('perplexitybot', 'Perplexity'),
+            ('ccbot', 'Common Crawl'),
+            ('semrushbot', 'SEMrush'),
+            ('ahrefsbot', 'Ahrefs'),
+            ('mj12bot', 'Majestic'),
+            ('dotbot', 'Moz'),
+            ('applebot', 'Apple 爬虫'),
+            ('facebookexternalhit', 'Facebook'),
+            ('twitterbot', 'Twitter'),
+            ('linkedinbot', 'LinkedIn'),
+            ('whatsapp', 'WhatsApp'),
+            ('telegrambot', 'Telegram'),
+            ('bot', '其他爬虫'),
+            ('crawler', '其他爬虫'),
+            ('spider', '其他爬虫'),
+            ('scraper', '其他爬虫'),
+        ]
+        
+        for pattern, name in bot_patterns:
+            if pattern in ua_lower:
+                return name
+        
+        # 非爬虫流量，分析 referrer
+        if not referrer or referrer.strip() == '':
+            return '直接访问'
+        
+        ref_lower = referrer.lower()
+        
+        # 搜索引擎
+        search_engines = [
+            ('google.', 'Google 搜索'),
+            ('bing.', 'Bing 搜索'),
+            ('baidu.', '百度搜索'),
+            ('sogou.', '搜狗搜索'),
+            ('so.com', '360 搜索'),
+            ('yahoo.', 'Yahoo 搜索'),
+            ('duckduckgo.', 'DuckDuckGo'),
+            ('yandex.', 'Yandex'),
+        ]
+        
+        for pattern, name in search_engines:
+            if pattern in ref_lower:
+                return name
+        
+        # 社交媒体
+        social_media = [
+            ('facebook.', 'Facebook'),
+            ('twitter.', 'Twitter'),
+            ('x.com', 'Twitter/X'),
+            ('linkedin.', 'LinkedIn'),
+            ('instagram.', 'Instagram'),
+            ('weibo.', '微博'),
+            ('zhihu.', '知乎'),
+            ('douyin.', '抖音'),
+            ('tiktok.', 'TikTok'),
+            ('xiaohongshu.', '小红书'),
+            ('wechat.', '微信'),
+            ('weixin.qq.', '微信'),
+            ('t.me', 'Telegram'),
+        ]
+        
+        for pattern, name in social_media:
+            if pattern in ref_lower:
+                return name
+        
+        # AI 搜索
+        ai_search = [
+            ('chat.openai.', 'ChatGPT'),
+            ('perplexity.', 'Perplexity'),
+            ('claude.ai', 'Claude'),
+            ('you.com', 'You.com'),
+            ('phind.', 'Phind'),
+        ]
+        
+        for pattern, name in ai_search:
+            if pattern in ref_lower:
+                return name
+        
+        # 自己的网站
+        if 'findablex.com' in ref_lower or 'findablex' in ref_lower:
+            return '站内跳转'
+        
+        # 其他来源 - 提取域名
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(referrer)
+            domain = parsed.netloc or parsed.path.split('/')[0]
+            if domain:
+                # 简化域名显示
+                domain = domain.replace('www.', '')
+                return f'外链: {domain}'
+        except Exception:
+            pass
+        
+        return '其他来源'

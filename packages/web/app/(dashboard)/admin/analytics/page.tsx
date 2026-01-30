@@ -73,6 +73,7 @@ interface TrafficMetrics {
     daily_dau: Array<{ date: string; dau: number }>;
   };
   top_pages: Array<{ page: string; count: number }>;
+  traffic_sources: Array<{ source: string; count: number }>;
   period_days: number;
 }
 
@@ -465,6 +466,87 @@ export default function AnalyticsPage() {
     );
   };
 
+  // 流量来源列表
+  const TrafficSourcesCard = ({ 
+    sources 
+  }: { 
+    sources: Array<{ source: string; count: number }>;
+  }) => {
+    // 根据来源类型返回不同的标签颜色
+    const getSourceColor = (source: string): string => {
+      if (source.includes('爬虫') || source.includes('Bot')) {
+        return 'bg-amber-500/20 text-amber-400';
+      }
+      if (source.includes('搜索')) {
+        return 'bg-blue-500/20 text-blue-400';
+      }
+      if (source === '直接访问') {
+        return 'bg-emerald-500/20 text-emerald-400';
+      }
+      if (source === '站内跳转') {
+        return 'bg-slate-500/20 text-slate-400';
+      }
+      if (source.includes('GPT') || source.includes('Claude') || source.includes('Perplexity')) {
+        return 'bg-purple-500/20 text-purple-400';
+      }
+      if (source.startsWith('外链:')) {
+        return 'bg-cyan-500/20 text-cyan-400';
+      }
+      return 'bg-slate-500/20 text-slate-400';
+    };
+    
+    const total = sources.reduce((sum, s) => sum + s.count, 0);
+    
+    return (
+      <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <Globe className="w-5 h-5 text-slate-400" />
+            <h3 className="text-lg font-semibold text-white">流量来源</h3>
+          </div>
+          <span className="text-xs text-slate-500">Top 10</span>
+        </div>
+        
+        {sources.length === 0 ? (
+          <p className="text-sm text-slate-500">暂无数据</p>
+        ) : (
+          <div className="space-y-3">
+            {sources.map((source, idx) => {
+              const percentage = total > 0 ? ((source.count / total) * 100).toFixed(1) : '0';
+              return (
+                <div key={source.source} className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-5 h-5 flex items-center justify-center text-xs font-medium text-slate-500 bg-slate-700/50 rounded">
+                        {idx + 1}
+                      </span>
+                      <span className={cn(
+                        "text-xs px-2 py-0.5 rounded",
+                        getSourceColor(source.source)
+                      )}>
+                        {source.source}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-white">{source.count}</span>
+                      <span className="text-xs text-slate-500 w-12 text-right">{percentage}%</span>
+                    </div>
+                  </div>
+                  <div className="h-1 bg-slate-700/50 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-primary-500/50 rounded-full transition-all"
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="max-w-7xl mx-auto">
       {/* Header */}
@@ -598,6 +680,11 @@ export default function AnalyticsPage() {
                   icon={UserCheck}
                   color="blue"
                 />
+              </div>
+
+              {/* Traffic Sources */}
+              <div className="mb-6">
+                <TrafficSourcesCard sources={trafficMetrics.traffic_sources || []} />
               </div>
 
               {/* Top Pages & Key Metrics */}

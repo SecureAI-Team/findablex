@@ -1,4 +1,5 @@
 import { MetadataRoute } from 'next';
+import { getAllArticles } from '@/lib/articles';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://findablex.com';
 
@@ -21,6 +22,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
     {
       url: `${SITE_URL}/pricing`,
+      lastModified: now,
+      changeFrequency: 'weekly' as const,
+      priority: 0.9,
+    },
+    {
+      url: `${SITE_URL}/articles`,
       lastModified: now,
       changeFrequency: 'weekly' as const,
       priority: 0.9,
@@ -69,5 +76,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
   ];
 
-  return staticPages;
+  // 文章页面 - 对 SEO 和 GEO 都很重要
+  const articles = getAllArticles();
+  const articlePages = articles.map((article) => ({
+    url: `${SITE_URL}/articles/${article.slug}`,
+    lastModified: new Date(article.updatedAt),
+    changeFrequency: 'monthly' as const,
+    priority: 0.8,
+  }));
+
+  return [...staticPages, ...articlePages];
 }

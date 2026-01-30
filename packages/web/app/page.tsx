@@ -18,9 +18,13 @@ import {
   Eye,
   Users,
   TrendingDown,
+  Newspaper,
+  Calendar,
+  Clock,
 } from 'lucide-react';
 import { Header, Footer, FeatureCard, StepCard, PricingCard, FAQAccordion, PageViewTracker } from '@/components';
 import { generateFAQSchema, generateSoftwareAppSchema, generateServiceSchema, generateBreadcrumbSchema, JsonLd } from '@/lib/seo';
+import { getFeaturedArticles } from '@/lib/articles';
 import { Metadata } from 'next';
 
 // 首页专属 SEO 元数据
@@ -510,6 +514,98 @@ export default function HomePage() {
                   </p>
                 </div>
               ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Articles Section - 资讯中心 */}
+        <section id="articles" className="py-20 lg:py-32">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center max-w-3xl mx-auto mb-16">
+              <div className="inline-flex items-center gap-2 bg-primary-500/10 border border-primary-500/20 rounded-full px-4 py-1.5 mb-6">
+                <Newspaper className="w-4 h-4 text-primary-400" />
+                <span className="text-primary-400 text-sm font-medium">
+                  GEO 资讯中心
+                </span>
+              </div>
+              <h2 className="font-display text-3xl lg:text-4xl font-bold text-white mb-4">
+                GEO 洞察与实战指南
+              </h2>
+              <p className="text-slate-400 text-lg">
+                深度解读生成式引擎优化策略，帮助您在 AI 搜索时代保持领先
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-8">
+              {getFeaturedArticles().map((article) => (
+                <article
+                  key={article.slug}
+                  className="bg-slate-800/50 rounded-2xl border border-slate-700/50 overflow-hidden hover:border-primary-500/50 transition-all group"
+                >
+                  {/* Article Image Placeholder */}
+                  <div className="h-48 bg-gradient-to-br from-primary-500/20 to-accent-500/20 flex items-center justify-center relative">
+                    <div className="text-6xl opacity-30">
+                      {article.category === 'GEO 基础' ? '📚' : article.category === '实战指南' ? '🎯' : '📊'}
+                    </div>
+                    {article.featured && (
+                      <span className="absolute top-4 right-4 text-xs font-medium text-amber-400 bg-amber-500/20 backdrop-blur px-2 py-1 rounded">
+                        精选
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="p-6">
+                    {/* Category */}
+                    <span className="text-xs font-medium text-primary-400 bg-primary-500/10 px-2 py-1 rounded">
+                      {article.category}
+                    </span>
+
+                    {/* Title */}
+                    <h3 className="font-display text-lg font-semibold text-white mt-3 mb-3 group-hover:text-primary-400 transition-colors line-clamp-2">
+                      <Link href={`/articles/${article.slug}`}>
+                        {article.title}
+                      </Link>
+                    </h3>
+
+                    {/* Excerpt */}
+                    <p className="text-slate-400 text-sm mb-4 line-clamp-2">
+                      {article.excerpt}
+                    </p>
+
+                    {/* Meta */}
+                    <div className="flex items-center gap-4 text-xs text-slate-500 mb-4">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        {new Date(article.publishedAt).toLocaleDateString('zh-CN')}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {article.readingTime} 分钟
+                      </span>
+                    </div>
+
+                    {/* Read More */}
+                    <Link
+                      href={`/articles/${article.slug}`}
+                      className="inline-flex items-center gap-1 text-sm text-primary-400 hover:text-primary-300 transition-colors group/link"
+                    >
+                      阅读全文
+                      <ArrowRight className="w-4 h-4 group-hover/link:translate-x-1 transition-transform" />
+                    </Link>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            {/* View All Link */}
+            <div className="text-center mt-12">
+              <Link
+                href="/articles"
+                className="inline-flex items-center gap-2 text-slate-300 hover:text-white border border-slate-600 hover:border-slate-500 px-6 py-3 rounded-xl transition-all"
+              >
+                查看全部文章
+                <ArrowRight className="w-4 h-4" />
+              </Link>
             </div>
           </div>
         </section>

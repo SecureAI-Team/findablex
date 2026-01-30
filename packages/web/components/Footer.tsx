@@ -7,6 +7,10 @@ const footerLinks = {
     { href: '/#how-it-works', label: '工作原理' },
     { href: '/faq', label: '常见问题' },
   ],
+  resources: [
+    { href: '/articles', label: '资讯中心' },
+    { href: '/sample-report', label: '样例报告' },
+  ],
   company: [
     { href: '/about', label: '关于我们' },
     { href: '/contact', label: '联系我们' },
@@ -46,6 +50,23 @@ export function Footer() {
             <h3 className="text-white font-semibold mb-4">产品</h3>
             <ul className="space-y-3">
               {footerLinks.product.map((link) => (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    className="text-slate-400 hover:text-primary-400 text-sm transition-colors"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Resources */}
+          <div>
+            <h3 className="text-white font-semibold mb-4">资源</h3>
+            <ul className="space-y-3">
+              {footerLinks.resources.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}

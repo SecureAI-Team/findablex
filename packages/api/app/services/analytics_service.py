@@ -240,6 +240,7 @@ class AnalyticsService:
     async def get_traffic_metrics(
         self,
         days: int = 30,
+        tz_offset_hours: int = 8,  # 默认中国时区 UTC+8
     ) -> Dict[str, Any]:
         """
         获取流量指标 (PV/UV/DAU)
@@ -247,10 +248,17 @@ class AnalyticsService:
         - PV (Page Views): 页面浏览量，每次访问计数
         - UV (Unique Visitors): 独立访客数，按 user_id 或 IP 去重
         - DAU (Daily Active Users): 日活跃用户，按天计算登录用户
+        
+        Args:
+            days: 统计天数
+            tz_offset_hours: 时区偏移（小时），默认 8 表示 UTC+8（中国时区）
         """
-        from sqlalchemy import cast, Date, distinct
+        from sqlalchemy import cast, Date, distinct, text
         from sqlalchemy.dialects.postgresql import JSONB
         
+        # 使用用户时区计算时间范围
+        tz_offset = timedelta(hours=tz_offset_hours)
+        now_local = datetime.now(timezone.utc) + tz_offset
         end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(days=days)
         
@@ -279,22 +287,27 @@ class AnalyticsService:
         uv_result = await self.db.execute(uv_query)
         total_uv = uv_result.scalar() or 0
         
-        # DAU - 日活跃用户 (今日登录用户数)
-        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        # DAU - 日活跃用户 (今日登录用户数，按用户时区计算今天)
+        today_start_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_start_utc = today_start_local - tz_offset  # 转回 UTC
+        
         dau_query = select(func.count(distinct(AuditLog.user_id))).where(
             and_(
                 AuditLog.action.in_(["login", "page_view"]),
                 AuditLog.resource_type == "event",
                 AuditLog.user_id.isnot(None),
-                AuditLog.created_at >= today_start,
+                AuditLog.created_at >= today_start_utc,
             )
         )
         dau_result = await self.db.execute(dau_query)
         today_dau = dau_result.scalar() or 0
         
-        # 按日统计 PV 趋势
+        # PostgreSQL 时区转换表达式
+        tz_interval = f"{tz_offset_hours} hours"
+        
+        # 按日统计 PV 趋势（使用用户时区进行分组）
         daily_pv_query = select(
-            func.date_trunc('day', AuditLog.created_at).label('date'),
+            func.date_trunc('day', AuditLog.created_at + text(f"interval '{tz_interval}'")).label('date'),
             func.count(AuditLog.id).label('pv'),
         ).where(
             and_(
@@ -304,9 +317,9 @@ class AnalyticsService:
                 AuditLog.created_at <= end_date,
             )
         ).group_by(
-            func.date_trunc('day', AuditLog.created_at)
+            func.date_trunc('day', AuditLog.created_at + text(f"interval '{tz_interval}'"))
         ).order_by(
-            func.date_trunc('day', AuditLog.created_at)
+            func.date_trunc('day', AuditLog.created_at + text(f"interval '{tz_interval}'"))
         )
         daily_pv_result = await self.db.execute(daily_pv_query)
         daily_pv = [
@@ -316,7 +329,7 @@ class AnalyticsService:
         
         # 按日统计 UV 趋势
         daily_uv_query = select(
-            func.date_trunc('day', AuditLog.created_at).label('date'),
+            func.date_trunc('day', AuditLog.created_at + text(f"interval '{tz_interval}'")).label('date'),
             func.count(distinct(AuditLog.user_id)).label('uv'),
         ).where(
             and_(
@@ -327,9 +340,9 @@ class AnalyticsService:
                 AuditLog.created_at <= end_date,
             )
         ).group_by(
-            func.date_trunc('day', AuditLog.created_at)
+            func.date_trunc('day', AuditLog.created_at + text(f"interval '{tz_interval}'"))
         ).order_by(
-            func.date_trunc('day', AuditLog.created_at)
+            func.date_trunc('day', AuditLog.created_at + text(f"interval '{tz_interval}'"))
         )
         daily_uv_result = await self.db.execute(daily_uv_query)
         daily_uv = [
@@ -339,7 +352,7 @@ class AnalyticsService:
         
         # 按日统计 DAU 趋势 (有登录或访问行为的用户)
         daily_dau_query = select(
-            func.date_trunc('day', AuditLog.created_at).label('date'),
+            func.date_trunc('day', AuditLog.created_at + text(f"interval '{tz_interval}'")).label('date'),
             func.count(distinct(AuditLog.user_id)).label('dau'),
         ).where(
             and_(
@@ -350,9 +363,9 @@ class AnalyticsService:
                 AuditLog.created_at <= end_date,
             )
         ).group_by(
-            func.date_trunc('day', AuditLog.created_at)
+            func.date_trunc('day', AuditLog.created_at + text(f"interval '{tz_interval}'"))
         ).order_by(
-            func.date_trunc('day', AuditLog.created_at)
+            func.date_trunc('day', AuditLog.created_at + text(f"interval '{tz_interval}'"))
         )
         daily_dau_result = await self.db.execute(daily_dau_query)
         daily_dau = [
@@ -408,4 +421,5 @@ class AnalyticsService:
             },
             "top_pages": top_pages,
             "period_days": days,
+            "timezone_offset": tz_offset_hours,
         }

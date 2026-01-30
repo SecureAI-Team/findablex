@@ -65,6 +65,7 @@ async def track_event(
 @router.get("/funnel")
 async def get_funnel_metrics(
     days: int = 30,
+    tz_offset: int = 8,  # 默认中国时区 UTC+8
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> FunnelMetricsResponse:
@@ -72,12 +73,20 @@ async def get_funnel_metrics(
     Get funnel metrics for the last N days.
     
     Admin only endpoint.
+    
+    Args:
+        days: Number of days to look back
+        tz_offset: Timezone offset in hours (default 8 for China/UTC+8)
     """
     if not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Admin only")
     
     analytics = AnalyticsService(db)
-    start_date = datetime.now(timezone.utc) - timedelta(days=days)
+    # 考虑时区偏移计算开始时间
+    tz_offset_delta = timedelta(hours=tz_offset)
+    now_local = datetime.now(timezone.utc) + tz_offset_delta
+    start_of_period_local = (now_local - timedelta(days=days)).replace(hour=0, minute=0, second=0, microsecond=0)
+    start_date = start_of_period_local - tz_offset_delta  # 转回 UTC
     
     metrics = await analytics.get_funnel_metrics(start_date)
     
@@ -121,6 +130,7 @@ def _get_next_activation_step(status: Dict[str, bool]) -> Optional[str]:
 @router.get("/events")
 async def get_event_counts(
     days: int = 7,
+    tz_offset: int = 8,  # 默认中国时区 UTC+8
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Dict[str, Any]:
@@ -128,12 +138,20 @@ async def get_event_counts(
     Get event counts for the last N days.
     
     Admin only endpoint.
+    
+    Args:
+        days: Number of days to look back
+        tz_offset: Timezone offset in hours (default 8 for China/UTC+8)
     """
     if not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Admin only")
     
     analytics = AnalyticsService(db)
-    start_date = datetime.now(timezone.utc) - timedelta(days=days)
+    # 考虑时区偏移计算开始时间
+    tz_offset_delta = timedelta(hours=tz_offset)
+    now_local = datetime.now(timezone.utc) + tz_offset_delta
+    start_of_period_local = (now_local - timedelta(days=days)).replace(hour=0, minute=0, second=0, microsecond=0)
+    start_date = start_of_period_local - tz_offset_delta  # 转回 UTC
     
     counts = await analytics.get_event_counts(start_date)
     
@@ -162,6 +180,7 @@ async def get_event_counts(
 @router.get("/traffic")
 async def get_traffic_metrics(
     days: int = 30,
+    tz_offset: int = 8,  # 默认中国时区 UTC+8
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Dict[str, Any]:
@@ -169,6 +188,10 @@ async def get_traffic_metrics(
     Get traffic metrics (PV/UV/DAU) for the last N days.
     
     Admin only endpoint.
+    
+    Args:
+        days: Number of days to look back
+        tz_offset: Timezone offset in hours (default 8 for China/UTC+8)
     
     Returns:
     - summary: PV, UV, DAU totals and averages
@@ -179,6 +202,6 @@ async def get_traffic_metrics(
         raise HTTPException(status_code=403, detail="Admin only")
     
     analytics = AnalyticsService(db)
-    metrics = await analytics.get_traffic_metrics(days=days)
+    metrics = await analytics.get_traffic_metrics(days=days, tz_offset_hours=tz_offset)
     
     return metrics

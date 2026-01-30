@@ -132,15 +132,24 @@ export default function AnalyticsPage() {
   const [days, setDays] = useState(30);
   const [activeTab, setActiveTab] = useState<'traffic' | 'funnel' | 'events'>('traffic');
 
+  // 获取用户时区偏移（小时）
+  const getTzOffset = () => {
+    // getTimezoneOffset() 返回分钟，且符号相反（UTC+8 返回 -480）
+    const offsetMinutes = new Date().getTimezoneOffset();
+    return -Math.round(offsetMinutes / 60);
+  };
+
   const fetchData = async () => {
     setIsLoading(true);
     setError('');
     
+    const tzOffset = getTzOffset();
+    
     try {
       const [funnelRes, eventsRes, trafficRes] = await Promise.all([
-        api.get(`/analytics/funnel?days=${days}`),
-        api.get(`/analytics/events?days=${days}`),
-        api.get(`/analytics/traffic?days=${days}`),
+        api.get(`/analytics/funnel?days=${days}&tz_offset=${tzOffset}`),
+        api.get(`/analytics/events?days=${days}&tz_offset=${tzOffset}`),
+        api.get(`/analytics/traffic?days=${days}&tz_offset=${tzOffset}`),
       ]);
       
       setFunnelMetrics(funnelRes.data);

@@ -80,18 +80,12 @@ function renderMarkdown(content: string) {
     .replace(/^## (.*$)/gim, '<h2 class="text-2xl font-bold text-white mt-10 mb-5">$1</h2>')
     .replace(/^# (.*$)/gim, '<h1 class="text-3xl font-bold text-white mt-12 mb-6">$1</h1>');
 
-  // 处理粗体
-  html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-semibold">$1</strong>');
-
-  // 处理代码块
+  // 处理代码块（在粗体之前，避免干扰）
   html = html.replace(/```([\s\S]*?)```/g, '<pre class="bg-slate-800 rounded-lg p-4 my-4 overflow-x-auto text-sm text-slate-300"><code>$1</code></pre>');
 
-  // 处理行内代码
-  html = html.replace(/`([^`]+)`/g, '<code class="bg-slate-800 px-1.5 py-0.5 rounded text-primary-400 text-sm">$1</code>');
-
-  // 处理列表
+  // 处理列表（在段落之前）
   html = html.replace(/^\- (.*$)/gim, '<li class="ml-4 mb-2 text-slate-300">$1</li>');
-  html = html.replace(/(<li.*<\/li>\n?)+/g, '<ul class="list-disc list-outside ml-4 my-4">$&</ul>');
+  html = html.replace(/(<li.*<\/li>\n?)+/g, '<ul class="list-disc list-outside ml-4 my-4 text-slate-300">$&</ul>');
 
   // 处理数字列表
   html = html.replace(/^\d+\. (.*$)/gim, '<li class="ml-4 mb-2 text-slate-300">$1</li>');
@@ -109,17 +103,28 @@ function renderMarkdown(content: string) {
   });
   html = html.replace(/(<tr.*<\/tr>\n?)+/g, '<table class="w-full border-collapse my-6 text-sm text-slate-300"><tbody>$&</tbody></table>');
 
-  // 处理链接
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-primary-400 hover:text-primary-300 underline">$1</a>');
+  // 处理分隔线
+  html = html.replace(/^---$/gim, '<hr class="border-slate-700 my-8" />');
 
-  // 处理段落
-  html = html.replace(/^(?!<[hultop])(.*$)/gim, (match) => {
-    if (match.trim() === '' || match.startsWith('<')) return match;
+  // 处理段落 - 更精确的匹配，只跳过真正的块级元素
+  html = html.replace(/^(.+)$/gim, (match) => {
+    const trimmed = match.trim();
+    // 跳过空行
+    if (trimmed === '') return match;
+    // 跳过已经是块级元素的行（h1-h6, ul, li, table, tr, td, pre, hr）
+    if (/^<(h[1-6]|ul|li|table|tr|td|pre|hr|tbody)/.test(trimmed)) return match;
+    // 其他内容包装成段落
     return `<p class="text-slate-300 leading-relaxed mb-4">${match}</p>`;
   });
 
-  // 处理分隔线
-  html = html.replace(/^---$/gim, '<hr class="border-slate-700 my-8" />');
+  // 处理粗体（在段落之后，这样粗体在段落内部）
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-semibold">$1</strong>');
+
+  // 处理行内代码
+  html = html.replace(/`([^`]+)`/g, '<code class="bg-slate-800 px-1.5 py-0.5 rounded text-primary-400 text-sm">$1</code>');
+
+  // 处理链接
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-primary-400 hover:text-primary-300 underline">$1</a>');
 
   return html;
 }

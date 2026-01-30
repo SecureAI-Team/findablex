@@ -376,7 +376,9 @@ export default function UsersPage() {
                               {user.full_name || '未设置'}
                             </span>
                             {user.is_superuser && (
-                              <Shield className="w-3.5 h-3.5 text-amber-400" title="平台管理员" />
+                              <span title="平台管理员">
+                                <Shield className="w-3.5 h-3.5 text-amber-400" />
+                              </span>
                             )}
                           </div>
                           <div className="flex items-center gap-1 text-xs text-slate-400">

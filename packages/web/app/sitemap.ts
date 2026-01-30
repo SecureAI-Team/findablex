@@ -33,7 +33,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.9,
     },
     {
-      url: `${SITE_URL}/research`,
+      url: `${SITE_URL}/research-center`,
       lastModified: now,
       changeFrequency: 'monthly' as const,
       priority: 0.9,

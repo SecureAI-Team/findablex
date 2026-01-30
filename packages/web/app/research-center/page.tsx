@@ -12,7 +12,7 @@ export const metadata: Metadata = generatePageMetadata({
   title: 'GEO 研究中心 - 白皮书与行业报告',
   description:
     '获取 FindableX 发布的 GEO（生成式引擎优化）研究报告、白皮书和行业洞察。基于权威数据和实证研究，帮助品牌理解 AI 搜索趋势。',
-  path: '/research',
+  path: '/research-center',
 });
 
 const researchItems = [
@@ -85,13 +85,13 @@ const stats = [
   { label: '引用次数', value: '500+', icon: TrendingUp },
 ];
 
-export default function ResearchPage() {
+export default function ResearchCenterPage() {
   return (
     <>
       <JsonLd
         data={generateBreadcrumbSchema([
           { name: '首页', url: '/' },
-          { name: '研究中心', url: '/research' },
+          { name: '研究中心', url: '/research-center' },
         ])}
       />
       <PageViewTracker pageName="research_center" properties={{ page_type: 'content' }} />

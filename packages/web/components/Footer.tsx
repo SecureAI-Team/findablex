@@ -9,7 +9,7 @@ const footerLinks = {
   ],
   resources: [
     { href: '/articles', label: '资讯中心' },
-    { href: '/research', label: '研究报告' },
+    { href: '/research-center', label: '研究报告' },
     { href: '/sample-report', label: '样例报告' },
   ],
   company: [

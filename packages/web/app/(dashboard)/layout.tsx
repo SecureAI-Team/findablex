@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   Bot,
   FileText,
@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { api, logout } from '@/lib/api';
 import { clsx } from 'clsx';
+import { analytics } from '@/lib/analytics';
 
 const navigation = [
   { name: '概览', href: '/dashboard', icon: Home },
@@ -37,6 +38,36 @@ const adminNavigation = [
   { name: '审计日志', href: '/admin/audit', icon: Shield },
 ];
 
+// 将路径转换为页面名称
+function getPageName(pathname: string): string {
+  const pageMap: Record<string, string> = {
+    '/dashboard': 'dashboard',
+    '/projects': 'projects',
+    '/reports': 'reports',
+    '/research': 'research',
+    '/team': 'team',
+    '/subscription': 'subscription',
+    '/settings': 'settings',
+    '/admin/users': 'admin_users',
+    '/admin/analytics': 'admin_analytics',
+    '/admin/audit': 'admin_audit',
+  };
+  
+  // 精确匹配
+  if (pageMap[pathname]) {
+    return pageMap[pathname];
+  }
+  
+  // 前缀匹配
+  for (const [path, name] of Object.entries(pageMap)) {
+    if (pathname.startsWith(path)) {
+      return name;
+    }
+  }
+  
+  return pathname.replace(/\//g, '_').replace(/^_/, '');
+}
+
 export default function DashboardLayout({
   children,
 }: {
@@ -46,6 +77,7 @@ export default function DashboardLayout({
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const lastTrackedPath = useRef<string>('');
 
   useEffect(() => {
     // Check both localStorage and sessionStorage (sessionStorage used when "remember me" is unchecked)
@@ -62,6 +94,20 @@ export default function DashboardLayout({
         logout();
       });
   }, [router]);
+
+  // 页面访问追踪
+  useEffect(() => {
+    if (user && pathname && pathname !== lastTrackedPath.current) {
+      lastTrackedPath.current = pathname;
+      const pageName = getPageName(pathname);
+      
+      analytics.track('page_view', {
+        page_name: pageName,
+        page_path: pathname,
+        page_title: document.title,
+      });
+    }
+  }, [pathname, user]);
 
   const handleLogout = () => {
     logout();

@@ -157,3 +157,28 @@ async def get_event_counts(
         "by_event": counts,
         "by_category": by_category,
     }
+
+
+@router.get("/traffic")
+async def get_traffic_metrics(
+    days: int = 30,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Get traffic metrics (PV/UV/DAU) for the last N days.
+    
+    Admin only endpoint.
+    
+    Returns:
+    - summary: PV, UV, DAU totals and averages
+    - trends: Daily PV, UV, DAU data for charts
+    - top_pages: Most visited pages
+    """
+    if not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Admin only")
+    
+    analytics = AnalyticsService(db)
+    metrics = await analytics.get_traffic_metrics(days=days)
+    
+    return metrics

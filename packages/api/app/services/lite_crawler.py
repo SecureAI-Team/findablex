@@ -3613,6 +3613,8 @@ async def run_lite_crawler_task(
     engine: str,
     queries: List[Dict[str, str]],
     config: Optional[Dict[str, Any]] = None,
+    workspace_id: Optional[UUID] = None,
+    user_id: Optional[UUID] = None,
 ):
     """
     Run a crawler task in the background.
@@ -3621,6 +3623,11 @@ async def run_lite_crawler_task(
     1. API mode (if enabled and API key available) - no browser needed
     2. Browser mode (if Playwright available)
     3. Mock mode (fallback)
+    
+    API Key Priority:
+    1. User-level credential (if user_id provided)
+    2. Workspace-level credential (if workspace_id provided)
+    3. Platform-level dynamic setting
     """
     # Check if API mode should be used
     try:
@@ -3635,10 +3642,10 @@ async def run_lite_crawler_task(
         if api_mode_enabled and engine in api_engines:
             api_service = APICrawlerService()
             try:
-                # Check if API key is configured
-                if await api_service.is_api_available(engine):
+                # Check if API key is configured (try multi-level lookup)
+                if await api_service.is_api_available(engine, workspace_id, user_id):
                     logger.info(f"[Crawler] Using API mode for engine {engine}")
-                    await run_api_crawler_task(task_id, engine, queries, config)
+                    await run_api_crawler_task(task_id, engine, queries, config, workspace_id, user_id)
                     return
                 else:
                     logger.info(f"[Crawler] API key not configured for {engine}, falling back to browser mode")
@@ -3666,8 +3673,20 @@ async def run_api_crawler_task(
     engine: str,
     queries: List[Dict[str, str]],
     config: Optional[Dict[str, Any]] = None,
+    workspace_id: Optional[UUID] = None,
+    user_id: Optional[UUID] = None,
 ):
-    """Run a crawler task using API mode (no browser needed)."""
+    """
+    Run a crawler task using API mode (no browser needed).
+    
+    Args:
+        task_id: The task ID
+        engine: The engine to use
+        queries: List of query dictionaries
+        config: Optional configuration
+        workspace_id: Optional workspace ID for workspace-level credentials
+        user_id: Optional user ID for user-level credentials
+    """
     from app.services.api_crawler import APICrawlerService
     
     config = config or {}
@@ -3700,11 +3719,12 @@ async def run_api_crawler_task(
                 logger.info(f"[APICrawler] Processing query {idx + 1}/{len(queries)}: {query_text[:50]}...")
                 
                 try:
-                    # Execute query via API
+                    # Execute query via API with multi-level key lookup
                     api_result = await api_service.execute_query(
                         engine_name=engine,
                         question=query_text,
-                        workspace_id=None,  # TODO: Get from task/project
+                        workspace_id=workspace_id,
+                        user_id=user_id,
                         enable_web_search=enable_web_search,
                     )
                     
@@ -3866,12 +3886,24 @@ def schedule_lite_crawler_task(
     engine: str,
     queries: List[Dict[str, str]],
     config: Optional[Dict[str, Any]] = None,
+    workspace_id: Optional[UUID] = None,
+    user_id: Optional[UUID] = None,
 ):
-    """Schedule a crawler task to run in the background (non-blocking)."""
+    """
+    Schedule a crawler task to run in the background (non-blocking).
+    
+    Args:
+        task_id: The task ID
+        engine: The engine to use
+        queries: List of query dictionaries
+        config: Optional configuration
+        workspace_id: Optional workspace ID for workspace-level credentials
+        user_id: Optional user ID for user-level credentials
+    """
     try:
         loop = asyncio.get_running_loop()
-        loop.create_task(run_lite_crawler_task(task_id, engine, queries, config))
+        loop.create_task(run_lite_crawler_task(task_id, engine, queries, config, workspace_id, user_id))
         logger.info(f"[LiteCrawler] Scheduled task {task_id} in background")
     except RuntimeError:
         # No running loop, run synchronously
-        asyncio.run(run_lite_crawler_task(task_id, engine, queries, config))
+        asyncio.run(run_lite_crawler_task(task_id, engine, queries, config, workspace_id, user_id))

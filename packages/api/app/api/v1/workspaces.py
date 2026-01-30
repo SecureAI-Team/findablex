@@ -1,16 +1,20 @@
 """Workspace routes."""
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.deps import get_current_user, get_db
 from app.models.user import User
 from app.models.project import Project
 from app.models.run import Run
+from app.models.workspace import Membership as WorkspaceMembership
+from app.models.invite_code import WorkspaceInvite
 from app.schemas.workspace import (
     MembershipCreate,
     MembershipResponse,
@@ -397,3 +401,205 @@ async def get_workspace_stats(
         completed_runs_count=completed_runs_count,
         avg_health_score=round(avg_health_score, 1) if avg_health_score else None,
     )
+
+
+# ========== Workspace Invite Schemas ==========
+
+class WorkspaceInviteCreate(BaseModel):
+    """Schema for creating a workspace invite."""
+    role: str = "viewer"  # admin, analyst, researcher, viewer
+    max_uses: int = 0     # 0 = unlimited
+    expires_days: Optional[int] = 7  # None = never expires
+
+
+class WorkspaceInviteResponse(BaseModel):
+    """Schema for workspace invite response."""
+    id: UUID
+    workspace_id: UUID
+    workspace_name: Optional[str] = None
+    code: str
+    role: str
+    max_uses: int
+    used_count: int
+    expires_at: Optional[datetime]
+    is_active: bool
+    created_by: Optional[UUID]
+    created_at: datetime
+    invite_url: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+
+
+class InviteValidationResponse(BaseModel):
+    """Schema for public invite validation response."""
+    valid: bool
+    workspace_name: Optional[str] = None
+    role: Optional[str] = None
+    message: Optional[str] = None
+
+
+# ========== Workspace Invite Endpoints ==========
+
+@router.post("/{workspace_id}/invites", response_model=WorkspaceInviteResponse)
+async def create_workspace_invite(
+    workspace_id: UUID,
+    data: WorkspaceInviteCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> WorkspaceInviteResponse:
+    """Create a new invite link for the workspace."""
+    workspace_service = WorkspaceService(db)
+    
+    # Check admin membership
+    membership = await workspace_service.get_membership(workspace_id, current_user.id)
+    if not membership or membership.role != "admin":
+        if not current_user.is_superuser:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins can create invites",
+            )
+    
+    # Get workspace
+    workspace = await workspace_service.get_by_id(workspace_id)
+    if not workspace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Workspace not found",
+        )
+    
+    # Validate role
+    valid_roles = ["admin", "analyst", "researcher", "viewer"]
+    if data.role not in valid_roles:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid role. Must be one of: {', '.join(valid_roles)}",
+        )
+    
+    # Calculate expiration
+    expires_at = None
+    if data.expires_days is not None and data.expires_days > 0:
+        expires_at = datetime.now(timezone.utc) + timedelta(days=data.expires_days)
+    
+    # Create invite
+    invite = WorkspaceInvite(
+        workspace_id=workspace_id,
+        code=WorkspaceInvite.generate_code(),
+        role=data.role,
+        max_uses=data.max_uses,
+        expires_at=expires_at,
+        created_by=current_user.id,
+    )
+    
+    db.add(invite)
+    await db.commit()
+    await db.refresh(invite)
+    
+    return WorkspaceInviteResponse(
+        id=invite.id,
+        workspace_id=invite.workspace_id,
+        workspace_name=workspace.name,
+        code=invite.code,
+        role=invite.role,
+        max_uses=invite.max_uses,
+        used_count=invite.used_count,
+        expires_at=invite.expires_at,
+        is_active=invite.is_active,
+        created_by=invite.created_by,
+        created_at=invite.created_at,
+    )
+
+
+@router.get("/{workspace_id}/invites", response_model=List[WorkspaceInviteResponse])
+async def list_workspace_invites(
+    workspace_id: UUID,
+    include_inactive: bool = Query(False),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> List[WorkspaceInviteResponse]:
+    """List all invites for the workspace."""
+    workspace_service = WorkspaceService(db)
+    
+    # Check admin membership
+    membership = await workspace_service.get_membership(workspace_id, current_user.id)
+    if not membership or membership.role != "admin":
+        if not current_user.is_superuser:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins can view invites",
+            )
+    
+    # Get workspace
+    workspace = await workspace_service.get_by_id(workspace_id)
+    if not workspace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Workspace not found",
+        )
+    
+    # Build query
+    query = select(WorkspaceInvite).where(WorkspaceInvite.workspace_id == workspace_id)
+    if not include_inactive:
+        query = query.where(WorkspaceInvite.is_active == True)
+    query = query.order_by(WorkspaceInvite.created_at.desc())
+    
+    result = await db.execute(query)
+    invites = result.scalars().all()
+    
+    return [
+        WorkspaceInviteResponse(
+            id=inv.id,
+            workspace_id=inv.workspace_id,
+            workspace_name=workspace.name,
+            code=inv.code,
+            role=inv.role,
+            max_uses=inv.max_uses,
+            used_count=inv.used_count,
+            expires_at=inv.expires_at,
+            is_active=inv.is_active and inv.is_valid(),
+            created_by=inv.created_by,
+            created_at=inv.created_at,
+        )
+        for inv in invites
+    ]
+
+
+@router.delete("/{workspace_id}/invites/{invite_id}")
+async def revoke_workspace_invite(
+    workspace_id: UUID,
+    invite_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Revoke (deactivate) an invite link."""
+    workspace_service = WorkspaceService(db)
+    
+    # Check admin membership
+    membership = await workspace_service.get_membership(workspace_id, current_user.id)
+    if not membership or membership.role != "admin":
+        if not current_user.is_superuser:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins can revoke invites",
+            )
+    
+    # Get invite
+    result = await db.execute(
+        select(WorkspaceInvite).where(
+            WorkspaceInvite.id == invite_id,
+            WorkspaceInvite.workspace_id == workspace_id,
+        )
+    )
+    invite = result.scalar_one_or_none()
+    
+    if not invite:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invite not found",
+        )
+    
+    # Deactivate
+    invite.is_active = False
+    await db.commit()
+    
+    return {"message": "Invite has been revoked"}

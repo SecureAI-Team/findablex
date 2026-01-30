@@ -1,9 +1,9 @@
 """User model."""
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import Boolean, DateTime, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -132,6 +132,89 @@ class User(Base):
         cascade="all, delete-orphan",
         foreign_keys="Membership.user_id",  # Specify FK to avoid ambiguity with invited_by
     )
+    credentials: Mapped[List["UserCredential"]] = relationship(
+        "UserCredential",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
     
     def __repr__(self) -> str:
         return f"<User {self.email}>"
+
+
+class UserCredential(Base):
+    """
+    User-level API Key credentials.
+    
+    Allows users to store their own API keys for various AI services.
+    These have highest priority over workspace and platform-level keys.
+    """
+    
+    __tablename__ = "user_credentials"
+    
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    engine: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        comment="AI engine: deepseek, qwen, kimi, perplexity, chatgpt",
+    )
+    credential_type: Mapped[str] = mapped_column(
+        String(20),
+        default="api_key",
+        nullable=False,
+        comment="Credential type: api_key",
+    )
+    encrypted_value: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="Fernet encrypted credential value",
+    )
+    label: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="User-readable label",
+    )
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+    )
+    last_used_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    last_error: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Last error message if any",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+    
+    # Relationships
+    user: Mapped["User"] = relationship(
+        "User",
+        back_populates="credentials",
+    )
+    
+    def __repr__(self) -> str:
+        return f"<UserCredential {self.engine}/{self.credential_type} for user {self.user_id}>"

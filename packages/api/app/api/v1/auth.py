@@ -7,12 +7,13 @@ from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.config import settings
 from app.core.security import create_access_token, create_refresh_token, create_password_reset_token, verify_password_reset_token, verify_refresh_token, verify_password
 from app.deps import get_current_user, get_db
 from app.models.user import User
-from app.models.invite_code import InviteCode
+from app.models.invite_code import InviteCode, WorkspaceInvite
 from app.schemas.user import Token, UserCreate, UserLogin, UserResponse, UserUpdate
 from app.services.user_service import UserService
 from app.services.workspace_service import WorkspaceService
@@ -46,7 +47,13 @@ async def register(
     data: UserCreate,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Register a new user."""
+    """
+    Register a new user.
+    
+    The invite_code can be either:
+    1. A platform invite code (InviteCode) - user gets a personal workspace
+    2. A workspace invite code (WorkspaceInvite) - user joins the specified workspace with a specific role
+    """
     user_service = UserService(db)
     workspace_service = WorkspaceService(db)
     
@@ -60,26 +67,60 @@ async def register(
     
     # Validate invite code if provided or required
     invite_code_obj = None
+    workspace_invite = None
+    
     if data.invite_code:
+        # First, try to find a workspace invite (longer format)
         result = await db.execute(
-            select(InviteCode).where(InviteCode.code == data.invite_code)
+            select(WorkspaceInvite)
+            .options(joinedload(WorkspaceInvite.workspace))
+            .where(WorkspaceInvite.code == data.invite_code)
         )
-        invite_code_obj = result.scalar_one_or_none()
+        workspace_invite = result.scalar_one_or_none()
         
-        if not invite_code_obj:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="无效的邀请码",
+        if workspace_invite:
+            # Validate workspace invite
+            if not workspace_invite.is_valid():
+                if not workspace_invite.is_active:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="邀请链接已被撤销",
+                    )
+                if workspace_invite.max_uses > 0 and workspace_invite.used_count >= workspace_invite.max_uses:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="邀请链接已达到使用上限",
+                    )
+                if workspace_invite.expires_at:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="邀请链接已过期",
+                    )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="邀请链接无效",
+                )
+        else:
+            # Try platform invite code (shorter format, uppercase)
+            result = await db.execute(
+                select(InviteCode).where(InviteCode.code == data.invite_code.upper())
             )
-        
-        if not invite_code_obj.is_valid():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="邀请码已过期或已用尽",
-            )
+            invite_code_obj = result.scalar_one_or_none()
+            
+            if not invite_code_obj:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="无效的邀请码",
+                )
+            
+            if not invite_code_obj.is_valid():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="邀请码已过期或已用尽",
+                )
     
     # Check if invite code is required (from settings)
-    if settings.invite_code_required and not invite_code_obj:
+    if settings.invite_code_required and not invite_code_obj and not workspace_invite:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="注册需要邀请码",
@@ -88,18 +129,38 @@ async def register(
     # Create user
     user = await user_service.create(data)
     
-    # Mark invite code as used
-    if invite_code_obj:
+    # Handle invite code usage and workspace assignment
+    default_workspace = None
+    
+    if workspace_invite:
+        # Mark workspace invite as used
+        workspace_invite.use()
+        
+        # Add user to the workspace with the specified role
+        await workspace_service.add_member(
+            workspace_invite.workspace,
+            user,
+            workspace_invite.role,
+            invited_by=workspace_invite.created_by,
+        )
+        default_workspace = workspace_invite.workspace
+        await db.commit()
+        
+    elif invite_code_obj:
+        # Mark platform invite code as used
         invite_code_obj.use()
         await db.commit()
-    
-    # Create default workspace for user
-    workspace = await workspace_service.create_default_workspace(user)
+        
+        # Create default personal workspace for user
+        default_workspace = await workspace_service.create_default_workspace(user)
+    else:
+        # No invite code - create default personal workspace
+        default_workspace = await workspace_service.create_default_workspace(user)
     
     # Return user with workspace_id
     return {
         **user.__dict__,
-        "default_workspace_id": workspace.id if workspace else None,
+        "default_workspace_id": default_workspace.id if default_workspace else None,
     }
 
 

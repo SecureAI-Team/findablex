@@ -19,6 +19,12 @@ import {
   X,
   Eye,
   FlaskConical,
+  Link as LinkIcon,
+  Copy,
+  Check,
+  AlertCircle,
+  Calendar,
+  Clock,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -40,6 +46,20 @@ interface Member {
   user_name: string;
 }
 
+interface WorkspaceInvite {
+  id: string;
+  workspace_id: string;
+  workspace_name?: string;
+  code: string;
+  role: string;
+  max_uses: number;
+  used_count: number;
+  expires_at?: string;
+  is_active: boolean;
+  created_by?: string;
+  created_at: string;
+}
+
 const roleLabels: Record<string, { label: string; icon: any; color: string }> = {
   admin: { label: '管理员', icon: Crown, color: 'text-yellow-400 bg-yellow-400/10' },
   analyst: { label: '分析师', icon: UserCog, color: 'text-blue-400 bg-blue-400/10' },
@@ -58,6 +78,17 @@ export default function TeamPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  
+  // Invite link states
+  const [inviteLinks, setInviteLinks] = useState<WorkspaceInvite[]>([]);
+  const [showCreateLinkModal, setShowCreateLinkModal] = useState(false);
+  const [isCreatingLink, setIsCreatingLink] = useState(false);
+  const [newLinkForm, setNewLinkForm] = useState({
+    role: 'viewer',
+    max_uses: 0,
+    expires_days: 7,
+  });
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   const {
     register,
@@ -89,9 +120,18 @@ export default function TeamPage() {
           const currentMember = membersRes.data.find(
             (m: Member) => m.user_id === userRes.data.id
           );
-          setIsAdmin(
-            currentMember?.role === 'admin' || userRes.data.is_superuser
-          );
+          const userIsAdmin = currentMember?.role === 'admin' || userRes.data.is_superuser;
+          setIsAdmin(userIsAdmin);
+          
+          // Fetch invite links if admin
+          if (userIsAdmin) {
+            try {
+              const linksRes = await api.get(`/workspaces/${wsId}/invites`);
+              setInviteLinks(linksRes.data);
+            } catch (err) {
+              console.log('Failed to fetch invite links:', err);
+            }
+          }
         }
       } catch (error) {
         console.error('Failed to fetch team data:', error);
@@ -168,6 +208,78 @@ export default function TeamPage() {
       setError(err.response?.data?.detail || '移除成员失败');
     }
     setMenuOpenId(null);
+  };
+
+  // Invite link functions
+  const handleCreateInviteLink = async () => {
+    if (!workspaceId) return;
+    
+    setIsCreatingLink(true);
+    setError('');
+    
+    try {
+      await api.post(`/workspaces/${workspaceId}/invites`, newLinkForm);
+      
+      // Refresh invite links
+      const linksRes = await api.get(`/workspaces/${workspaceId}/invites`);
+      setInviteLinks(linksRes.data);
+      
+      setSuccess('邀请链接创建成功');
+      setTimeout(() => setSuccess(''), 3000);
+      setShowCreateLinkModal(false);
+      setNewLinkForm({ role: 'viewer', max_uses: 0, expires_days: 7 });
+    } catch (err: any) {
+      setError(err.response?.data?.detail || '创建邀请链接失败');
+    } finally {
+      setIsCreatingLink(false);
+    }
+  };
+
+  const handleRevokeInviteLink = async (inviteId: string) => {
+    if (!workspaceId) return;
+    if (!confirm('确定要撤销此邀请链接吗？')) return;
+    
+    try {
+      await api.delete(`/workspaces/${workspaceId}/invites/${inviteId}`);
+      
+      // Refresh invite links
+      const linksRes = await api.get(`/workspaces/${workspaceId}/invites`);
+      setInviteLinks(linksRes.data);
+      
+      setSuccess('邀请链接已撤销');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || '撤销邀请链接失败');
+    }
+  };
+
+  const getInviteUrl = (code: string) => {
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    return `${baseUrl}/register?invite=${code}`;
+  };
+
+  const handleCopyInviteLink = async (code: string) => {
+    const url = getInviteUrl(code);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedCode(code);
+      setTimeout(() => setCopiedCode(null), 2000);
+    } catch (err) {
+      setError('复制失败');
+    }
+  };
+
+  const formatExpiry = (expiresAt?: string) => {
+    if (!expiresAt) return '永不过期';
+    const date = new Date(expiresAt);
+    const now = new Date();
+    if (date < now) return '已过期';
+    return date.toLocaleDateString('zh-CN', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
   if (isLoading) {
@@ -327,6 +439,123 @@ export default function TeamPage() {
         </div>
       </div>
 
+      {/* Invite Links Section (Admin Only) */}
+      {isAdmin && (
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50">
+          <div className="p-6 border-b border-slate-700/50 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-green-500/10 rounded-lg flex items-center justify-center">
+                <LinkIcon className="w-5 h-5 text-green-400" />
+              </div>
+              <div>
+                <h2 className="font-display text-lg font-semibold text-white">
+                  邀请链接
+                </h2>
+                <p className="text-sm text-slate-400">
+                  创建邀请链接，新用户通过链接注册后自动加入团队
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowCreateLinkModal(true)}
+              className="inline-flex items-center gap-2 bg-green-500/20 hover:bg-green-500/30 text-green-400 px-4 py-2 rounded-lg font-medium text-sm transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              创建链接
+            </button>
+          </div>
+
+          {inviteLinks.length === 0 ? (
+            <div className="p-8 text-center">
+              <LinkIcon className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+              <p className="text-slate-400 mb-2">暂无邀请链接</p>
+              <p className="text-sm text-slate-500">
+                创建邀请链接让新用户快速加入团队
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-700/50">
+              {inviteLinks.map((invite) => {
+                const roleInfo = roleLabels[invite.role] || roleLabels.viewer;
+                const RoleIcon = roleInfo.icon;
+                
+                return (
+                  <div
+                    key={invite.id}
+                    className="p-4 flex items-center justify-between hover:bg-slate-700/20 transition-colors"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-slate-700 rounded-lg flex items-center justify-center">
+                        <LinkIcon className="w-5 h-5 text-slate-400" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <code className="text-sm font-mono text-white bg-slate-700 px-2 py-0.5 rounded">
+                            {invite.code.substring(0, 12)}...
+                          </code>
+                          <div className={cn(
+                            'flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium',
+                            roleInfo.color
+                          )}>
+                            <RoleIcon className="w-3 h-3" />
+                            {roleInfo.label}
+                          </div>
+                          {!invite.is_active && (
+                            <span className="text-xs px-2 py-0.5 bg-red-500/10 text-red-400 rounded">
+                              已撤销
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
+                          <span className="flex items-center gap-1">
+                            <Users className="w-3 h-3" />
+                            已使用 {invite.used_count}{invite.max_uses > 0 ? `/${invite.max_uses}` : ''} 次
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {formatExpiry(invite.expires_at)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      {invite.is_active && (
+                        <button
+                          onClick={() => handleCopyInviteLink(invite.code)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg text-sm transition-colors"
+                        >
+                          {copiedCode === invite.code ? (
+                            <>
+                              <Check className="w-4 h-4 text-green-400" />
+                              已复制
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-4 h-4" />
+                              复制链接
+                            </>
+                          )}
+                        </button>
+                      )}
+                      {invite.is_active && (
+                        <button
+                          onClick={() => handleRevokeInviteLink(invite.id)}
+                          className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                          title="撤销链接"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Role Descriptions */}
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
         <h3 className="font-display text-lg font-semibold text-white mb-4">
@@ -458,6 +687,125 @@ export default function TeamPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create Invite Link Modal */}
+      {showCreateLinkModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-slate-700">
+              <h2 className="font-display text-xl font-semibold text-white">
+                创建邀请链接
+              </h2>
+              <button
+                onClick={() => {
+                  setShowCreateLinkModal(false);
+                  setNewLinkForm({ role: 'viewer', max_uses: 0, expires_days: 7 });
+                  setError('');
+                }}
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-400 text-sm flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  {error}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  加入后的角色
+                </label>
+                <select
+                  value={newLinkForm.role}
+                  onChange={(e) => setNewLinkForm({ ...newLinkForm, role: e.target.value })}
+                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg py-2.5 px-4 text-white focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500"
+                >
+                  <option value="viewer">查看者 - 只读权限</option>
+                  <option value="analyst">分析师 - 可创建项目和分析</option>
+                  <option value="researcher">研究员 - 可触发爬虫和导出</option>
+                  <option value="admin">管理员 - 完全控制</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  使用次数限制
+                </label>
+                <select
+                  value={newLinkForm.max_uses}
+                  onChange={(e) => setNewLinkForm({ ...newLinkForm, max_uses: Number(e.target.value) })}
+                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg py-2.5 px-4 text-white focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500"
+                >
+                  <option value={0}>无限制</option>
+                  <option value={1}>1 次</option>
+                  <option value={5}>5 次</option>
+                  <option value={10}>10 次</option>
+                  <option value={25}>25 次</option>
+                  <option value={50}>50 次</option>
+                  <option value={100}>100 次</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  有效期
+                </label>
+                <select
+                  value={newLinkForm.expires_days ?? 7}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setNewLinkForm({
+                      ...newLinkForm,
+                      expires_days: val === '' ? undefined : Number(val),
+                    } as any);
+                  }}
+                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg py-2.5 px-4 text-white focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500"
+                >
+                  <option value="">永不过期</option>
+                  <option value={1}>1 天</option>
+                  <option value={7}>7 天</option>
+                  <option value={14}>14 天</option>
+                  <option value={30}>30 天</option>
+                  <option value={90}>90 天</option>
+                </select>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateLinkModal(false);
+                    setNewLinkForm({ role: 'viewer', max_uses: 0, expires_days: 7 });
+                    setError('');
+                  }}
+                  className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2.5 rounded-lg font-medium transition-all"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleCreateInviteLink}
+                  disabled={isCreatingLink}
+                  className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-green-500/50 text-white py-2.5 rounded-lg font-medium transition-all flex items-center justify-center gap-2"
+                >
+                  {isCreatingLink ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      创建中...
+                    </>
+                  ) : (
+                    '创建链接'
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

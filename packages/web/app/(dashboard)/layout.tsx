@@ -32,6 +32,7 @@ const navigation = [
 ];
 
 const adminNavigation = [
+  { name: '用户管理', href: '/admin/users', icon: Users },
   { name: '数据分析', href: '/admin/analytics', icon: BarChart3 },
   { name: '审计日志', href: '/admin/audit', icon: Shield },
 ];

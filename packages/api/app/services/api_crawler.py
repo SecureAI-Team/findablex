@@ -23,6 +23,7 @@ import httpx
 
 from app.config import dynamic
 from app.services.credential_service import CredentialService
+from app.services.user_credential_service import UserCredentialService
 
 logger = logging.getLogger(__name__)
 
@@ -649,48 +650,77 @@ class APICrawlerService:
         self,
         engine_name: str,
         workspace_id: Optional[UUID] = None,
+        user_id: Optional[UUID] = None,
     ) -> Optional[APIEngineBase]:
         """
         Get an API engine instance with configured API key.
         
-        Priority for API key:
-        1. Workspace-level credential (if workspace_id provided)
-        2. Platform-level dynamic setting
+        API Key Priority:
+        1. User-level credential (if user_id provided)
+        2. Workspace-level credential (if workspace_id provided)
+        3. Platform-level dynamic setting
         """
         # Map web engine name to API engine name if needed
         api_engine_name = WEB_TO_API_ENGINE_MAP.get(engine_name, engine_name)
         
-        if api_engine_name not in API_ENGINES:
+        # Map short names to API engine names (e.g., "deepseek" -> "deepseek_api")
+        engine_lookup = engine_name.lower()
+        if engine_lookup in WEB_TO_API_ENGINE_MAP:
+            api_engine_name = WEB_TO_API_ENGINE_MAP[engine_lookup]
+        elif engine_name in API_ENGINES:
+            api_engine_name = engine_name
+        else:
             logger.warning(f"[API Crawler] Engine not supported: {engine_name}")
             return None
         
+        if api_engine_name not in API_ENGINES:
+            logger.warning(f"[API Crawler] Engine not in registry: {api_engine_name}")
+            return None
+        
         # Check cache
-        cache_key = f"{api_engine_name}:{workspace_id or 'platform'}"
+        cache_key = f"{api_engine_name}:{user_id or 'no_user'}:{workspace_id or 'no_ws'}"
         if cache_key in self._engines:
             return self._engines[cache_key]
         
-        # Get API key
+        # Get API key with priority
         api_key = None
+        key_source = None
         
-        # Try workspace credential first
-        if workspace_id and self.db:
+        # 1. Try user-level credential first
+        if user_id and self.db:
+            try:
+                user_cred_service = UserCredentialService(self.db)
+                api_key = await user_cred_service.get_active(user_id, engine_lookup)
+                if api_key:
+                    key_source = "user"
+                    logger.debug(f"[API Crawler] Using user-level API key for {api_engine_name}")
+            except Exception as e:
+                logger.debug(f"[API Crawler] Failed to get user credential: {e}")
+        
+        # 2. Try workspace credential
+        if not api_key and workspace_id and self.db:
             try:
                 cred_service = CredentialService(self.db)
-                cred = await cred_service.get_credential(
+                cred = await cred_service.get_active_credential(
                     workspace_id=workspace_id,
-                    engine=api_engine_name,
+                    engine=engine_lookup,
                     credential_type="api_key",
                 )
                 if cred:
-                    api_key = await cred_service.decrypt_credential(cred)
+                    api_key = cred.get("value")
+                    key_source = "workspace"
+                    logger.debug(f"[API Crawler] Using workspace-level API key for {api_engine_name}")
             except Exception as e:
                 logger.debug(f"[API Crawler] Failed to get workspace credential: {e}")
         
-        # Fall back to platform setting
+        # 3. Fall back to platform setting
         if not api_key:
             config_key = API_KEY_CONFIG.get(api_engine_name)
             if config_key:
                 api_key = await dynamic.get(config_key)
+                if api_key:
+                    key_source = "platform"
+                    logger.debug(f"[API Crawler] Using platform-level API key for {api_engine_name}")
         
         if not api_key:
             logger.warning(f"[API Crawler] No API key configured for {api_engine_name}")
@@ -700,18 +730,20 @@ class APICrawlerService:
         engine_class = API_ENGINES[api_engine_name]
         engine = engine_class(api_key)
         
-        # Cache it
+        # Cache it (don't cache for too long in case keys change)
         self._engines[cache_key] = engine
         
+        logger.info(f"[API Crawler] Created engine {api_engine_name} with {key_source}-level key")
         return engine
     
     async def is_api_available(
         self,
         engine_name: str,
         workspace_id: Optional[UUID] = None,
+        user_id: Optional[UUID] = None,
     ) -> bool:
         """Check if API mode is available for an engine."""
-        engine = await self.get_engine(engine_name, workspace_id)
+        engine = await self.get_engine(engine_name, workspace_id, user_id)
         return engine is not None
     
     async def execute_query(
@@ -719,10 +751,18 @@ class APICrawlerService:
         engine_name: str,
         question: str,
         workspace_id: Optional[UUID] = None,
+        user_id: Optional[UUID] = None,
         enable_web_search: bool = True,
     ) -> Dict[str, Any]:
         """
         Execute a single query using API.
+        
+        Args:
+            engine_name: Engine to use
+            question: The query question
+            workspace_id: Optional workspace for workspace-level credentials
+            user_id: Optional user for user-level credentials
+            enable_web_search: Enable web search if supported
         
         Returns:
             {
@@ -735,7 +775,7 @@ class APICrawlerService:
                 "error": str | None,
             }
         """
-        engine = await self.get_engine(engine_name, workspace_id)
+        engine = await self.get_engine(engine_name, workspace_id, user_id)
         
         if not engine:
             return {
@@ -776,6 +816,7 @@ class APICrawlerService:
         engine_name: str,
         questions: List[str],
         workspace_id: Optional[UUID] = None,
+        user_id: Optional[UUID] = None,
         enable_web_search: bool = True,
         concurrency: int = 3,
         delay_between_requests: float = 1.0,
@@ -786,7 +827,8 @@ class APICrawlerService:
         Args:
             engine_name: Engine to use
             questions: List of questions
-            workspace_id: Optional workspace for credentials
+            workspace_id: Optional workspace for workspace-level credentials
+            user_id: Optional user for user-level credentials
             enable_web_search: Enable web search
             concurrency: Max concurrent requests
             delay_between_requests: Delay between requests (seconds)
@@ -802,7 +844,7 @@ class APICrawlerService:
                 if idx > 0:
                     await asyncio.sleep(delay_between_requests)
                 result = await self.execute_query(
-                    engine_name, q, workspace_id, enable_web_search
+                    engine_name, q, workspace_id, user_id, enable_web_search
                 )
                 return idx, result
         
@@ -834,6 +876,7 @@ class APICrawlerService:
 async def should_use_api_mode(
     engine_name: str,
     workspace_id: Optional[UUID] = None,
+    user_id: Optional[UUID] = None,
     db_session=None,
 ) -> bool:
     """
@@ -841,10 +884,10 @@ async def should_use_api_mode(
     
     Returns True if:
     1. Engine supports API mode
-    2. API key is configured
+    2. API key is configured (user-level, workspace-level, or platform-level)
     """
     service = APICrawlerService(db_session)
     try:
-        return await service.is_api_available(engine_name, workspace_id)
+        return await service.is_api_available(engine_name, workspace_id, user_id)
     finally:
         await service.close()

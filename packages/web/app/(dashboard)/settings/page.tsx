@@ -15,9 +15,354 @@ import {
   Eye,
   EyeOff,
   Building2,
+  Plus,
+  Trash2,
+  XCircle,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
+
+// API Key management interfaces
+interface Credential {
+  id: string;
+  engine: string;
+  credential_type: string;
+  label?: string;
+  is_active: boolean;
+  last_used_at?: string;
+  last_error?: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+const ENGINE_INFO: Record<string, { name: string; description: string }> = {
+  deepseek: { name: 'DeepSeek', description: 'DeepSeek AI 模型' },
+  qwen: { name: '通义千问', description: '阿里云通义千问' },
+  kimi: { name: 'Kimi', description: 'Moonshot AI Kimi' },
+  perplexity: { name: 'Perplexity', description: 'Perplexity AI' },
+  chatgpt: { name: 'ChatGPT', description: 'OpenAI ChatGPT' },
+};
+
+// API Keys Tab Component
+function APIKeysTab() {
+  const [credentials, setCredentials] = useState<Credential[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newKey, setNewKey] = useState({ engine: 'deepseek', api_key: '', label: '' });
+  const [isSaving, setIsSaving] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+
+  const fetchCredentials = async () => {
+    try {
+      const res = await api.get<Credential[]>('/me/credentials?include_inactive=true');
+      setCredentials(res.data);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || '加载 API 密钥失败');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCredentials();
+  }, []);
+
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => setSuccess(''), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [success]);
+
+  const handleAddKey = async () => {
+    if (!newKey.api_key) {
+      setError('请输入 API 密钥');
+      return;
+    }
+    
+    setIsSaving(true);
+    setError('');
+    
+    try {
+      await api.post('/me/credentials', newKey);
+      setSuccess('API 密钥添加成功');
+      setShowAddModal(false);
+      setNewKey({ engine: 'deepseek', api_key: '', label: '' });
+      await fetchCredentials();
+    } catch (err: any) {
+      setError(err.response?.data?.detail || '添加失败');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteKey = async (id: string) => {
+    try {
+      await api.delete(`/me/credentials/${id}`);
+      setSuccess('API 密钥已删除');
+      setShowDeleteConfirm(null);
+      await fetchCredentials();
+    } catch (err: any) {
+      setError(err.response?.data?.detail || '删除失败');
+    }
+  };
+
+  const handleToggleActive = async (cred: Credential) => {
+    try {
+      await api.put(`/me/credentials/${cred.id}`, {
+        is_active: !cred.is_active,
+      });
+      await fetchCredentials();
+    } catch (err: any) {
+      setError(err.response?.data?.detail || '更新失败');
+    }
+  };
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  return (
+    <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="font-display text-lg font-semibold text-white">
+            我的 API 密钥
+          </h2>
+          <p className="text-slate-400 text-sm mt-1">
+            配置您自己的 AI 服务 API 密钥，优先级高于工作区和平台级配置
+          </p>
+        </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg text-sm font-medium transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          添加密钥
+        </button>
+      </div>
+
+      {success && (
+        <div className="mb-6 p-4 bg-green-500/10 border border-green-500/50 rounded-lg text-green-400 text-sm flex items-center gap-2">
+          <CheckCircle className="w-4 h-4" />
+          {success}
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-lg text-red-400 text-sm flex items-center gap-2">
+          <AlertCircle className="w-4 h-4" />
+          {error}
+          <button onClick={() => setError('')} className="ml-auto">
+            <XCircle className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+        </div>
+      ) : credentials.length === 0 ? (
+        <div className="text-center py-12">
+          <Key className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+          <p className="text-slate-400 mb-4">您还没有配置任何 API 密钥</p>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="text-primary-400 hover:text-primary-300 text-sm"
+          >
+            点击添加第一个密钥
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {credentials.map((cred) => (
+            <div
+              key={cred.id}
+              className={cn(
+                "p-4 rounded-lg border transition-colors",
+                cred.is_active
+                  ? "bg-slate-700/30 border-slate-600"
+                  : "bg-slate-800/30 border-slate-700 opacity-60"
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "w-10 h-10 rounded-lg flex items-center justify-center",
+                    cred.is_active ? "bg-primary-500/20" : "bg-slate-700"
+                  )}>
+                    <Key className={cn(
+                      "w-5 h-5",
+                      cred.is_active ? "text-primary-400" : "text-slate-500"
+                    )} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-white">
+                        {ENGINE_INFO[cred.engine]?.name || cred.engine}
+                      </span>
+                      {cred.label && (
+                        <span className="text-xs text-slate-400">({cred.label})</span>
+                      )}
+                      {!cred.is_active && (
+                        <span className="text-xs px-2 py-0.5 bg-slate-600 text-slate-400 rounded">
+                          已禁用
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      添加于 {formatDate(cred.created_at)}
+                      {cred.last_used_at && (
+                        <> · 最后使用 {formatDate(cred.last_used_at)}</>
+                      )}
+                    </div>
+                    {cred.last_error && (
+                      <div className="text-xs text-red-400 mt-1">
+                        错误: {cred.last_error.substring(0, 50)}...
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleToggleActive(cred)}
+                    className={cn(
+                      "px-3 py-1.5 text-xs rounded-lg transition-colors",
+                      cred.is_active
+                        ? "bg-slate-600 text-slate-300 hover:bg-slate-500"
+                        : "bg-green-500/20 text-green-400 hover:bg-green-500/30"
+                    )}
+                  >
+                    {cred.is_active ? '禁用' : '启用'}
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteConfirm(cred.id)}
+                    className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-white mb-4">添加 API 密钥</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  AI 服务
+                </label>
+                <select
+                  value={newKey.engine}
+                  onChange={(e) => setNewKey({ ...newKey, engine: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  {Object.entries(ENGINE_INFO).map(([key, info]) => (
+                    <option key={key} value={key}>{info.name} - {info.description}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  API 密钥
+                </label>
+                <input
+                  type="password"
+                  value={newKey.api_key}
+                  onChange={(e) => setNewKey({ ...newKey, api_key: e.target.value })}
+                  placeholder="sk-xxxxxxxxxxxxxxxx"
+                  className="w-full px-4 py-2.5 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  标签 (可选)
+                </label>
+                <input
+                  type="text"
+                  value={newKey.label}
+                  onChange={(e) => setNewKey({ ...newKey, label: e.target.value })}
+                  placeholder="例如: 工作用、测试用"
+                  className="w-full px-4 py-2.5 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowAddModal(false);
+                  setNewKey({ engine: 'deepseek', api_key: '', label: '' });
+                }}
+                className="flex-1 py-2.5 bg-slate-700 text-white rounded-lg font-medium hover:bg-slate-600 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleAddKey}
+                disabled={isSaving}
+                className="flex-1 py-2.5 bg-primary-500 text-white rounded-lg font-medium hover:bg-primary-600 disabled:bg-primary-500/50 transition-colors flex items-center justify-center gap-2"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    保存中...
+                  </>
+                ) : (
+                  '保存'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirm Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-sm w-full p-6">
+            <h3 className="text-lg font-semibold text-white mb-2">确认删除</h3>
+            <p className="text-slate-400 mb-6">
+              确定要删除这个 API 密钥吗？此操作不可恢复。
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(null)}
+                className="flex-1 py-2 bg-slate-700 text-white rounded-lg font-medium hover:bg-slate-600 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => handleDeleteKey(showDeleteConfirm)}
+                className="flex-1 py-2 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors"
+              >
+                删除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const profileSchema = z.object({
   full_name: z.string().min(2, '姓名至少2个字符'),
@@ -564,58 +909,7 @@ export default function SettingsPage() {
 
           {/* API Tab */}
           {activeTab === 'api' && (
-            <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
-              <h2 className="font-display text-lg font-semibold text-white mb-2">
-                API 密钥
-              </h2>
-              <p className="text-slate-400 text-sm mb-6">
-                配置 AI 服务的 API 密钥以启用高级功能
-              </p>
-
-              <div className="space-y-6">
-                <div className="p-4 bg-slate-700/30 rounded-lg border border-slate-600">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-white">通义千问 API</span>
-                      <span className="text-xs px-2 py-0.5 bg-slate-600 text-slate-300 rounded">
-                        可选
-                      </span>
-                    </div>
-                  </div>
-                  <input
-                    type="password"
-                    placeholder="sk-xxxxxxxxxxxxxxxx"
-                    className="w-full px-4 py-2.5 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
-                  />
-                  <p className="mt-2 text-xs text-slate-500">
-                    提供您的通义千问 API 密钥以启用 AI 辅助分析功能
-                  </p>
-                </div>
-
-                <div className="p-4 bg-slate-700/30 rounded-lg border border-slate-600">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-white">OpenAI API</span>
-                      <span className="text-xs px-2 py-0.5 bg-slate-600 text-slate-300 rounded">
-                        可选
-                      </span>
-                    </div>
-                  </div>
-                  <input
-                    type="password"
-                    placeholder="sk-xxxxxxxxxxxxxxxx"
-                    className="w-full px-4 py-2.5 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
-                  />
-                  <p className="mt-2 text-xs text-slate-500">
-                    提供您的 OpenAI API 密钥以启用 GPT 模型辅助分析
-                  </p>
-                </div>
-
-                <button className="bg-primary-500 hover:bg-primary-600 text-white px-6 py-2.5 rounded-lg font-medium transition-all">
-                  保存密钥
-                </button>
-              </div>
-            </div>
+            <APIKeysTab />
           )}
         </div>
       </div>

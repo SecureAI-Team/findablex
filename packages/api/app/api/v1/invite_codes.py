@@ -8,10 +8,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.deps import get_current_user, get_db
 from app.models.user import User
-from app.models.invite_code import InviteCode
+from app.models.invite_code import InviteCode, WorkspaceInvite
 
 router = APIRouter()
 
@@ -306,3 +307,67 @@ async def delete_invite_code(
     
     await db.delete(invite_code)
     await db.commit()
+
+
+# ========== Workspace Invite Validation (Public) ==========
+
+class WorkspaceInviteValidation(BaseModel):
+    """Schema for workspace invite validation response."""
+    valid: bool
+    workspace_name: Optional[str] = None
+    role: Optional[str] = None
+    reason: Optional[str] = None
+
+
+@router.get("/workspace/{code}", response_model=WorkspaceInviteValidation)
+async def validate_workspace_invite(
+    code: str,
+    db: AsyncSession = Depends(get_db),
+) -> WorkspaceInviteValidation:
+    """
+    Validate a workspace invite code (public endpoint).
+    
+    This endpoint is used by the registration page to verify an invite link
+    before allowing the user to register and join the workspace.
+    """
+    result = await db.execute(
+        select(WorkspaceInvite)
+        .options(joinedload(WorkspaceInvite.workspace))
+        .where(WorkspaceInvite.code == code)
+    )
+    invite = result.scalar_one_or_none()
+    
+    if not invite:
+        return WorkspaceInviteValidation(
+            valid=False,
+            reason="无效的邀请链接"
+        )
+    
+    if not invite.is_valid():
+        if not invite.is_active:
+            return WorkspaceInviteValidation(
+                valid=False,
+                reason="邀请链接已被撤销"
+            )
+        if invite.max_uses > 0 and invite.used_count >= invite.max_uses:
+            return WorkspaceInviteValidation(
+                valid=False,
+                reason="邀请链接已达到使用上限"
+            )
+        if invite.expires_at:
+            return WorkspaceInviteValidation(
+                valid=False,
+                reason="邀请链接已过期"
+            )
+        return WorkspaceInviteValidation(
+            valid=False,
+            reason="邀请链接无效"
+        )
+    
+    workspace_name = invite.workspace.name if invite.workspace else None
+    
+    return WorkspaceInviteValidation(
+        valid=True,
+        workspace_name=workspace_name,
+        role=invite.role,
+    )

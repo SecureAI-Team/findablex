@@ -145,29 +145,63 @@ function PasswordStrength({ password }: { password: string }) {
   );
 }
 
+interface WorkspaceInviteInfo {
+  valid: boolean;
+  workspace_name?: string;
+  role?: string;
+  reason?: string;
+}
+
 function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [workspaceInvite, setWorkspaceInvite] = useState<WorkspaceInviteInfo | null>(null);
+  const [isValidatingInvite, setIsValidatingInvite] = useState(false);
 
   const plan = searchParams.get('plan');
+  const inviteCode = searchParams.get('invite');
 
   const {
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
       agree_terms: false,
       region: 'cn',
+      invite_code: inviteCode || '',
     },
   });
 
   const password = watch('password', '');
+
+  // Validate workspace invite code on load
+  useEffect(() => {
+    const validateInvite = async () => {
+      if (!inviteCode) return;
+      
+      setIsValidatingInvite(true);
+      try {
+        const res = await api.get(`/invite-codes/workspace/${inviteCode}`);
+        setWorkspaceInvite(res.data);
+        if (res.data.valid) {
+          setValue('invite_code', inviteCode);
+        }
+      } catch (err) {
+        setWorkspaceInvite({ valid: false, reason: '邀请链接无效' });
+      } finally {
+        setIsValidatingInvite(false);
+      }
+    };
+    
+    validateInvite();
+  }, [inviteCode, setValue]);
 
   const onSubmit = async (data: RegisterForm) => {
     setIsLoading(true);
@@ -296,6 +330,37 @@ function RegisterForm() {
               </Link>
             </p>
           </div>
+
+          {/* Workspace Invite Banner */}
+          {workspaceInvite && workspaceInvite.valid && (
+            <div className="mb-6 p-4 bg-green-500/10 border border-green-500/50 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
+                  <Building2 className="w-5 h-5 text-green-400" />
+                </div>
+                <div>
+                  <p className="text-green-400 text-sm font-medium">
+                    您已被邀请加入
+                  </p>
+                  <p className="text-white font-semibold">
+                    {workspaceInvite.workspace_name}
+                  </p>
+                  <p className="text-green-400/70 text-xs mt-0.5">
+                    加入后的角色: {workspaceInvite.role === 'admin' ? '管理员' : 
+                                  workspaceInvite.role === 'analyst' ? '分析师' :
+                                  workspaceInvite.role === 'researcher' ? '研究员' : '查看者'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Invalid Invite Warning */}
+          {workspaceInvite && !workspaceInvite.valid && (
+            <div className="mb-6 p-4 bg-amber-500/10 border border-amber-500/50 rounded-lg text-amber-400 text-sm">
+              邀请链接无效: {workspaceInvite.reason || '链接已过期或已被撤销'}
+            </div>
+          )}
 
           {/* Error Message */}
           {error && (
@@ -461,21 +526,28 @@ function RegisterForm() {
               </div>
             </div>
 
-            {/* Invite Code */}
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                邀请码 <span className="text-slate-500">(可选)</span>
-              </label>
-              <div className="relative">
-                <Ticket className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-                <input
-                  type="text"
-                  {...register('invite_code')}
-                  className="w-full pl-12 pr-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                  placeholder="输入邀请码获得额外权益"
-                />
+            {/* Invite Code - Hidden when using workspace invite */}
+            {!(workspaceInvite && workspaceInvite.valid) && (
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  邀请码 <span className="text-slate-500">(可选)</span>
+                </label>
+                <div className="relative">
+                  <Ticket className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                  <input
+                    type="text"
+                    {...register('invite_code')}
+                    className="w-full pl-12 pr-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                    placeholder="输入邀请码获得额外权益"
+                  />
+                </div>
               </div>
-            </div>
+            )}
+            
+            {/* Hidden invite code for workspace invite */}
+            {workspaceInvite && workspaceInvite.valid && (
+              <input type="hidden" {...register('invite_code')} />
+            )}
 
             {/* Terms Agreement */}
             <div>

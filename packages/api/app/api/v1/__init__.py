@@ -1,7 +1,7 @@
 """API v1 routes."""
 from fastapi import APIRouter
 
-from app.api.v1 import auth, projects, runs, reports, workspaces, admin, crawler, settings, invite_codes, calibration, subscriptions, analytics, drift_events
+from app.api.v1 import auth, projects, runs, reports, workspaces, admin, crawler, settings, invite_codes, calibration, subscriptions, analytics, drift_events, credentials
 
 router = APIRouter()
 
@@ -18,3 +18,4 @@ router.include_router(calibration.router, prefix="/calibration", tags=["Calibrat
 router.include_router(subscriptions.router, prefix="/subscriptions", tags=["Subscriptions"])
 router.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
 router.include_router(drift_events.router, prefix="/projects", tags=["Drift Events"])
+router.include_router(credentials.router, tags=["Credentials"])

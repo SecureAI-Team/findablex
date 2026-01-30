@@ -1,0 +1,61 @@
+# https://www.robotstxt.org/robotstxt.html
+
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /projects/
+Disallow: /reports/
+Disallow: /settings/
+Disallow: /admin/
+Disallow: /share/
+Disallow: /team/
+Disallow: /subscription/
+
+# AI Search Engines - Allow content pages
+User-agent: GPTBot
+Allow: /
+Allow: /about
+Allow: /pricing
+Allow: /faq
+Allow: /sample-report
+Allow: /articles
+Allow: /articles/
+Allow: /research
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /admin/
+
+User-agent: ChatGPT-User
+Allow: /
+Allow: /about
+Allow: /pricing
+Allow: /faq
+Allow: /sample-report
+Allow: /articles
+Allow: /articles/
+Allow: /research
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /admin/
+
+User-agent: PerplexityBot
+Allow: /
+Allow: /about
+Allow: /pricing
+Allow: /faq
+Allow: /sample-report
+Allow: /articles
+Allow: /articles/
+Allow: /research
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /admin/
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+Sitemap: https://findablex.com/sitemap.xml

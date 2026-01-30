@@ -90,24 +90,24 @@ function renderMarkdown(content: string) {
   html = html.replace(/`([^`]+)`/g, '<code class="bg-slate-800 px-1.5 py-0.5 rounded text-primary-400 text-sm">$1</code>');
 
   // 处理列表
-  html = html.replace(/^\- (.*$)/gim, '<li class="ml-4 mb-2">$1</li>');
-  html = html.replace(/(<li.*<\/li>\n?)+/g, '<ul class="list-disc list-outside ml-4 my-4 text-slate-300">$&</ul>');
+  html = html.replace(/^\- (.*$)/gim, '<li class="ml-4 mb-2 text-slate-300">$1</li>');
+  html = html.replace(/(<li.*<\/li>\n?)+/g, '<ul class="list-disc list-outside ml-4 my-4">$&</ul>');
 
   // 处理数字列表
-  html = html.replace(/^\d+\. (.*$)/gim, '<li class="ml-4 mb-2">$1</li>');
+  html = html.replace(/^\d+\. (.*$)/gim, '<li class="ml-4 mb-2 text-slate-300">$1</li>');
 
-  // 处理表格
+  // 处理表格 - 添加文字颜色
   html = html.replace(/\|(.+)\|/g, (match, content) => {
     const cells = content.split('|').map((cell: string) => cell.trim());
     if (cells.every((cell: string) => cell.match(/^-+$/))) {
       return ''; // 表头分隔行
     }
     const cellHtml = cells
-      .map((cell: string) => `<td class="border border-slate-700 px-4 py-2">${cell}</td>`)
+      .map((cell: string) => `<td class="border border-slate-700 px-4 py-2 text-slate-300">${cell}</td>`)
       .join('');
-    return `<tr>${cellHtml}</tr>`;
+    return `<tr class="text-slate-300">${cellHtml}</tr>`;
   });
-  html = html.replace(/(<tr>.*<\/tr>\n?)+/g, '<table class="w-full border-collapse my-6 text-sm"><tbody>$&</tbody></table>');
+  html = html.replace(/(<tr.*<\/tr>\n?)+/g, '<table class="w-full border-collapse my-6 text-sm text-slate-300"><tbody>$&</tbody></table>');
 
   // 处理链接
   html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-primary-400 hover:text-primary-300 underline">$1</a>');

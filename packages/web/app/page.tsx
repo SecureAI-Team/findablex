@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   ArrowRight,
   BarChart3,
@@ -542,11 +543,16 @@ export default function HomePage() {
                   key={article.slug}
                   className="bg-slate-800/50 rounded-2xl border border-slate-700/50 overflow-hidden hover:border-primary-500/50 transition-all group"
                 >
-                  {/* Article Image Placeholder */}
-                  <div className="h-48 bg-gradient-to-br from-primary-500/20 to-accent-500/20 flex items-center justify-center relative">
-                    <div className="text-6xl opacity-30">
-                      {article.category === 'GEO 基础' ? '📚' : article.category === '实战指南' ? '🎯' : '📊'}
-                    </div>
+                  {/* Article Image */}
+                  <div className="h-48 relative overflow-hidden">
+                    <Image
+                      src={article.image}
+                      alt={article.title}
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-300"
+                      sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent" />
                     {article.featured && (
                       <span className="absolute top-4 right-4 text-xs font-medium text-amber-400 bg-amber-500/20 backdrop-blur px-2 py-1 rounded">
                         精选

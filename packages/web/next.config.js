@@ -2,8 +2,14 @@
 const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
-  experimental: {
-    serverActions: true,
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+        pathname: '/**',
+      },
+    ],
   },
   async rewrites() {
     return [
@@ -16,3 +22,4 @@ const nextConfig = {
 };
 
 module.exports = nextConfig;
+

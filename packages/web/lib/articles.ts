@@ -36,7 +36,7 @@ export const articles: Article[] = [
     readingTime: 12,
     category: 'GEO 基础',
     tags: ['GEO', '生成式引擎优化', 'AI SEO', 'ChatGPT', 'Perplexity'],
-    image: '/images/articles/what-is-geo.png',
+    image: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&h=450&fit=crop',
     featured: true,
     content: `
 ## 引言：AI 搜索时代的到来
@@ -191,7 +191,7 @@ GEO 不是 SEO 的替代品，而是数字营销策略的重要补充。随着 A
     readingTime: 15,
     category: '实战指南',
     tags: ['品牌监测', 'AI 可见性', '数据分析', 'GEO 指标'],
-    image: '/images/articles/brand-visibility.png',
+    image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=450&fit=crop',
     featured: true,
     content: `
 ## 为什么需要监测 AI 搜索可见性？
@@ -380,7 +380,7 @@ AI 搜索正在重塑用户获取信息的方式。今天开始监测您的 AI �
     readingTime: 10,
     category: '策略分析',
     tags: ['GEO vs SEO', '数字营销', 'AI 营销', '策略规划'],
-    image: '/images/articles/geo-vs-seo.png',
+    image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=450&fit=crop',
     featured: true,
     content: `
 ## 一个正在发生的转变

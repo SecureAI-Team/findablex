@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { Metadata } from 'next';
 import { Calendar, Clock, ArrowRight, Tag } from 'lucide-react';
 import { Header, Footer, PageViewTracker } from '@/components';
@@ -59,9 +60,16 @@ export default function ArticlesPage() {
                   key={article.slug}
                   className="bg-slate-800/50 rounded-2xl border border-slate-700/50 overflow-hidden hover:border-primary-500/50 transition-all group"
                 >
-                  {/* Article Image Placeholder */}
-                  <div className="h-48 bg-gradient-to-br from-primary-500/20 to-accent-500/20 flex items-center justify-center">
-                    <div className="text-6xl opacity-30">📊</div>
+                  {/* Article Image */}
+                  <div className="h-48 relative overflow-hidden">
+                    <Image
+                      src={article.image}
+                      alt={article.title}
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-300"
+                      sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent" />
                   </div>
 
                   <div className="p-6">

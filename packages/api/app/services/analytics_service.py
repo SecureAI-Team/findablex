@@ -414,11 +414,19 @@ class AnalyticsService:
                 if row.new_values and isinstance(row.new_values, dict):
                     props = row.new_values.get('properties', {})
                     if isinstance(props, dict):
-                        referrer = props.get('referrer', '')
-                        user_agent = props.get('user_agent', '')
+                        # 优先使用服务端标记的 bot_type
+                        is_bot = props.get('is_bot', False)
+                        bot_type = props.get('bot_type', '')
                         
-                        # 分析来源
-                        source = self._categorize_traffic_source(referrer, user_agent)
+                        if is_bot and bot_type:
+                            # 使用预标记的 bot 类型
+                            source = self._get_bot_display_name(bot_type)
+                        else:
+                            # 回退到 UA/referrer 分析
+                            referrer = props.get('referrer', '')
+                            user_agent = props.get('user_agent', '')
+                            source = self._categorize_traffic_source(referrer, user_agent)
+                        
                         source_counts[source] += 1
             
             # 排序并取前 10
@@ -571,3 +579,53 @@ class AnalyticsService:
             pass
         
         return '其他来源'
+    
+    def _get_bot_display_name(self, bot_type: str) -> str:
+        """
+        将 bot 类型转换为显示名称
+        
+        Args:
+            bot_type: 爬虫类型标识 (如 'baiduspider', 'googlebot')
+        
+        Returns:
+            显示名称
+        """
+        bot_names = {
+            # 搜索引擎爬虫
+            'googlebot': 'Google 爬虫',
+            'bingbot': 'Bing 爬虫',
+            'baiduspider': '百度爬虫',
+            'yandexbot': 'Yandex 爬虫',
+            'duckduckbot': 'DuckDuckGo 爬虫',
+            'slurp': 'Yahoo 爬虫',
+            'sogou': '搜狗爬虫',
+            '360spider': '360 爬虫',
+            'bytespider': '字节爬虫',
+            # AI 爬虫
+            'gptbot': 'GPTBot',
+            'chatgpt-user': 'ChatGPT',
+            'claudebot': 'Claude',
+            'anthropic-ai': 'Anthropic',
+            'perplexitybot': 'Perplexity',
+            'cohere-ai': 'Cohere',
+            # 社交媒体爬虫
+            'facebookexternalhit': 'Facebook 爬虫',
+            'twitterbot': 'Twitter 爬虫',
+            'linkedinbot': 'LinkedIn 爬虫',
+            'whatsapp': 'WhatsApp 爬虫',
+            'telegrambot': 'Telegram 爬虫',
+            'slackbot': 'Slack 爬虫',
+            'discordbot': 'Discord 爬虫',
+            # SEO 工具
+            'semrushbot': 'SEMrush',
+            'ahrefsbot': 'Ahrefs',
+            'mj12bot': 'Majestic',
+            'dotbot': 'Moz',
+            # 其他
+            'applebot': 'Apple 爬虫',
+            'ccbot': 'Common Crawl',
+            'ia_archiver': 'Internet Archive',
+            'petalbot': 'Petal 爬虫',
+        }
+        
+        return bot_names.get(bot_type.lower(), f'{bot_type} 爬虫')

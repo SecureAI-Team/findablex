@@ -22,6 +22,15 @@ class TrackEventRequest(BaseModel):
     properties: Optional[Dict[str, Any]] = None
 
 
+class BotVisitRequest(BaseModel):
+    """Request to track a bot visit."""
+    path: str
+    user_agent: str
+    referer: Optional[str] = None
+    bot_type: str
+    timestamp: Optional[str] = None
+
+
 class FunnelMetricsResponse(BaseModel):
     """Response for funnel metrics."""
     activation_funnel: dict
@@ -175,6 +184,37 @@ async def get_event_counts(
         "by_event": counts,
         "by_category": by_category,
     }
+
+
+@router.post("/bot-visit")
+async def track_bot_visit(
+    data: BotVisitRequest,
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, str]:
+    """
+    Track a bot/crawler visit.
+    
+    This endpoint is called by the Next.js middleware when a bot visits a page.
+    No authentication required as this is called server-to-server.
+    """
+    analytics = AnalyticsService(db)
+    
+    # 记录为 page_view 事件，但带有 bot 标识
+    await analytics.track_event(
+        event_type="page_view",
+        user_id=None,
+        workspace_id=None,
+        properties={
+            "page_path": data.path,
+            "user_agent": data.user_agent,
+            "referrer": data.referer or "",
+            "is_bot": True,
+            "bot_type": data.bot_type,
+            "source": "server_middleware",
+        },
+    )
+    
+    return {"status": "tracked"}
 
 
 @router.get("/traffic")

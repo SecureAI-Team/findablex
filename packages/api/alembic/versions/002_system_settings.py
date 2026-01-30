@@ -100,7 +100,7 @@ def upgrade() -> None:
         conn.execute(
             sa.text("""
                 INSERT INTO system_settings (key, category, value, value_type, is_secret, description)
-                VALUES (:key, :category, :value::jsonb, :value_type, :is_secret, :description)
+                VALUES (:key, :category, CAST(:value AS jsonb), :value_type, :is_secret, :description)
             """),
             {
                 "key": setting["key"],

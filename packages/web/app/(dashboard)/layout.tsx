@@ -101,8 +101,7 @@ export default function DashboardLayout({
       lastTrackedPath.current = pathname;
       const pageName = getPageName(pathname);
       
-      analytics.track('page_view', {
-        page_name: pageName,
+      analytics.trackPageView(pageName, {
         page_path: pathname,
         page_title: document.title,
       });

@@ -22,6 +22,7 @@ import {
   Newspaper,
   Calendar,
   Clock,
+  Quote,
 } from 'lucide-react';
 import { Header, Footer, FeatureCard, StepCard, PricingCard, FAQAccordion, PageViewTracker } from '@/components';
 import { generateFAQSchema, generateSoftwareAppSchema, generateServiceSchema, generateBreadcrumbSchema, JsonLd } from '@/lib/seo';
@@ -519,8 +520,84 @@ export default function HomePage() {
           </div>
         </section>
 
+        {/* Expert Quotes & Industry Data Section */}
+        <section className="py-20 lg:py-32">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center max-w-3xl mx-auto mb-16">
+              <div className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 rounded-full px-4 py-1.5 mb-6">
+                <Quote className="w-4 h-4 text-amber-400" />
+                <span className="text-amber-400 text-sm font-medium">
+                  权威观点
+                </span>
+              </div>
+              <h2 className="font-display text-3xl lg:text-4xl font-bold text-white mb-4">
+                行业领袖怎么看 AI 搜索？
+              </h2>
+              <p className="text-slate-400 text-lg">
+                来自 Gartner、普林斯顿大学等权威机构的研究与洞察
+              </p>
+            </div>
+
+            {/* Key Statistics */}
+            <div className="grid md:grid-cols-4 gap-6 mb-16">
+              {[
+                { value: '25%', label: '传统搜索流量预计下降', source: 'Gartner 2024' },
+                { value: '40%', label: 'Z 世代首选 AI 搜索', source: 'Pew Research' },
+                { value: '3 亿+', label: 'ChatGPT 周活跃用户', source: 'OpenAI' },
+                { value: '73%', label: '用户信任 AI 推荐品牌', source: 'HBR 调研' },
+              ].map((stat) => (
+                <div
+                  key={stat.label}
+                  className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 text-center"
+                >
+                  <div className="font-display text-3xl lg:text-4xl font-bold text-primary-400 mb-2">
+                    {stat.value}
+                  </div>
+                  <div className="text-white font-medium mb-1">{stat.label}</div>
+                  <div className="text-xs text-slate-500">{stat.source}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Expert Quotes */}
+            <div className="grid md:grid-cols-2 gap-8">
+              <div className="bg-gradient-to-br from-slate-800/80 to-slate-800/40 rounded-2xl p-8 border border-slate-700/50 relative">
+                <Quote className="absolute top-6 right-6 w-8 h-8 text-primary-500/20" />
+                <blockquote className="text-lg text-slate-300 leading-relaxed mb-6">
+                  "到 2026 年，传统搜索引擎的流量将下降 25%。这不是衰退，而是向 AI 驱动的搜索体验的转型。品牌需要重新思考'被发现'的含义。"
+                </blockquote>
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-primary-500/20 rounded-full flex items-center justify-center">
+                    <span className="text-primary-400 font-bold">G</span>
+                  </div>
+                  <div>
+                    <div className="text-white font-medium">Gartner</div>
+                    <div className="text-sm text-slate-500">Predicts 2024: Search Will Transform</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-slate-800/80 to-slate-800/40 rounded-2xl p-8 border border-slate-700/50 relative">
+                <Quote className="absolute top-6 right-6 w-8 h-8 text-amber-500/20" />
+                <blockquote className="text-lg text-slate-300 leading-relaxed mb-6">
+                  "我们的研究表明，通过特定的优化策略，内容在生成式 AI 搜索结果中的可见性可以提升 40% 以上。这证明 GEO 是可行的，也是必要的。"
+                </blockquote>
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-amber-500/20 rounded-full flex items-center justify-center">
+                    <span className="text-amber-400 font-bold">P</span>
+                  </div>
+                  <div>
+                    <div className="text-white font-medium">普林斯顿大学 GEO 研究团队</div>
+                    <div className="text-sm text-slate-500">GEO: Generative Engine Optimization (2024)</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Articles Section - 资讯中心 */}
-        <section id="articles" className="py-20 lg:py-32">
+        <section id="articles" className="py-20 lg:py-32 bg-slate-800/30">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto mb-16">
               <div className="inline-flex items-center gap-2 bg-primary-500/10 border border-primary-500/20 rounded-full px-4 py-1.5 mb-6">

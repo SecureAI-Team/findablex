@@ -1,12 +1,20 @@
-"""Payment API endpoints for subscription billing."""
-from typing import Any, Dict, Optional
+"""Payment API endpoints for subscription billing.
+
+Implements a manual QR code payment flow:
+1. POST /orders - Create an upgrade order
+2. POST /orders/{order_no}/confirm - User confirms payment
+3. GET /orders/{order_no} - Check order status
+4. POST /orders/{order_no}/activate - Admin activates subscription
+5. GET /orders - List orders (admin)
+"""
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import get_current_user, get_db
+from app.deps import get_current_user, get_current_superuser, get_db
 from app.models.user import User
 from app.services.payment_service import PaymentService
 from app.services.workspace_service import WorkspaceService
@@ -20,7 +28,17 @@ class CreateOrderRequest(BaseModel):
     """Request to create a payment order."""
     plan_code: str
     billing_cycle: str = "monthly"  # monthly or yearly
-    payment_method: str = "wechat"  # wechat, alipay, manual
+    payment_method: str = "wechat"  # wechat, alipay, bank_transfer
+
+
+class ConfirmPaymentRequest(BaseModel):
+    """User confirms they've completed payment."""
+    user_note: str = ""
+
+
+class ActivateOrderRequest(BaseModel):
+    """Admin activates an order."""
+    admin_note: str = ""
 
 
 class OrderResponse(BaseModel):
@@ -47,7 +65,7 @@ async def create_payment_order(
     """
     Create a payment order for subscription upgrade.
     
-    Returns payment data (QR code URL for WeChat, payment URL for Alipay).
+    Returns order details with QR code payment info.
     """
     workspace_service = WorkspaceService(db)
     
@@ -87,64 +105,84 @@ async def create_payment_order(
     )
 
 
-@router.post("/callback/wechat")
-async def wechat_payment_callback(
-    request: Request,
+@router.post("/orders/{order_no}/confirm")
+async def confirm_payment(
+    order_no: str,
+    data: ConfirmPaymentRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, str]:
+) -> Dict[str, Any]:
     """
-    WeChat Pay callback endpoint.
+    User confirms they've completed payment.
     
-    Called by WeChat Pay gateway after payment is completed.
+    Moves order to 'paid_unverified' status for admin review.
     """
-    try:
-        body = await request.body()
-        # In production: parse and verify WeChat callback XML/JSON
-        callback_data = {"raw": body.decode("utf-8", errors="replace")}
-        
-        payment_service = PaymentService(db)
-        result = await payment_service.handle_payment_callback("wechat", callback_data)
-        
-        return {"code": "SUCCESS", "message": "OK"}
-    except Exception as e:
-        return {"code": "FAIL", "message": str(e)}
-
-
-@router.post("/callback/alipay")
-async def alipay_payment_callback(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-) -> str:
-    """
-    Alipay callback endpoint.
+    payment_service = PaymentService(db)
     
-    Called by Alipay after payment is completed.
-    """
     try:
-        form_data = await request.form()
-        callback_data = dict(form_data)
-        
-        payment_service = PaymentService(db)
-        result = await payment_service.handle_payment_callback("alipay", callback_data)
-        
-        return "success"
-    except Exception:
-        return "fail"
+        result = await payment_service.confirm_payment(
+            order_no=order_no,
+            user_id=current_user.id,
+            user_note=data.user_note,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/orders/{order_id}")
+@router.get("/orders/{order_no}")
 async def get_order_status(
-    order_id: str,
+    order_no: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Dict[str, Any]:
     """Get payment order status."""
-    # In production: look up order from database
-    return {
-        "order_id": order_id,
-        "status": "pending",
-        "message": "等待支付",
-    }
+    payment_service = PaymentService(db)
+    order = await payment_service.get_order(order_no)
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Non-admin can only see their own orders
+    if not current_user.is_superuser and order.get("user_id") != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    return order
+
+
+@router.get("/orders")
+async def list_orders(
+    order_status: Optional[str] = None,
+    current_user: User = Depends(get_current_superuser),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """List all orders (admin only)."""
+    payment_service = PaymentService(db)
+    orders = await payment_service.list_orders(status=order_status)
+    
+    return {"orders": orders, "total": len(orders)}
+
+
+@router.post("/orders/{order_no}/activate")
+async def activate_order(
+    order_no: str,
+    data: ActivateOrderRequest,
+    current_user: User = Depends(get_current_superuser),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Admin activates an order and upgrades the subscription.
+    """
+    payment_service = PaymentService(db)
+    
+    try:
+        result = await payment_service.activate_order(
+            order_no=order_no,
+            admin_note=data.admin_note,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/methods")
@@ -159,21 +197,21 @@ async def list_payment_methods(
                 "name": "微信支付",
                 "icon": "wechat",
                 "enabled": True,
-                "description": "扫码支付，即时到账",
+                "description": "微信扫码支付",
             },
             {
                 "id": "alipay",
                 "name": "支付宝",
                 "icon": "alipay",
                 "enabled": True,
-                "description": "支付宝扫码或登录支付",
+                "description": "支付宝扫码支付",
             },
             {
-                "id": "manual",
+                "id": "bank_transfer",
                 "name": "对公转账",
                 "icon": "bank",
                 "enabled": True,
-                "description": "银行转账，1-2个工作日到账",
+                "description": "银行转账，1-2 个工作日到账",
             },
         ],
     }

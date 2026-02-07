@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, update, func, and_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import get_current_user, get_db
+from app.deps import get_current_user, get_current_superuser, get_db
 from app.models.user import User
 from app.models.notification import Notification
 
@@ -190,3 +190,19 @@ async def mark_all_notifications_read(
     await db.commit()
     
     return {"status": "ok", "marked": result.rowcount}
+
+
+@router.post("/admin/send-weekly-digest")
+async def trigger_weekly_digest(
+    current_user: User = Depends(get_current_superuser),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Admin endpoint: manually trigger weekly digest emails.
+    
+    Normally this runs on a Monday morning cron schedule.
+    """
+    from app.services.weekly_digest_service import send_weekly_digests
+    
+    stats = await send_weekly_digests(db)
+    return {"status": "ok", **stats}

@@ -26,6 +26,31 @@ from app.services.workspace_service import WorkspaceService
 router = APIRouter()
 
 
+# ========== AI Insights ==========
+
+@router.get("/insights/{project_id}")
+async def get_project_insights(
+    project_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """Get AI-driven optimization insights for a project."""
+    project_service = ProjectService(db)
+    workspace_service = WorkspaceService(db)
+    
+    project = await project_service.get_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    membership = await workspace_service.get_membership(project.workspace_id, current_user.id)
+    if not membership and not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    from app.services.ai_insights_service import AIInsightsService
+    service = AIInsightsService(db)
+    return await service.generate_insights(project_id)
+
+
 # ========== GEO 体检报告 API ==========
 
 @router.get("/health/{run_id}")

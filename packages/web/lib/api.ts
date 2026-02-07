@@ -88,11 +88,32 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle auth errors with token refresh
+// Handle auth errors with token refresh, and 402 quota errors
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+    
+    // Handle 402 Payment Required → trigger upgrade modal
+    if (error.response?.status === 402) {
+      const detail = (error.response.data as any)?.detail;
+      if (detail && typeof detail === 'object' && detail.code) {
+        // Dynamically import to avoid circular dependency
+        try {
+          const { triggerUpgradeModal } = await import('@/components/UpgradeModal');
+          triggerUpgradeModal({
+            code: detail.code,
+            message: detail.message || '',
+            current: detail.current,
+            limit: detail.limit,
+            feature: detail.feature,
+          });
+        } catch {
+          // UpgradeModal not available – fall through
+        }
+      }
+      return Promise.reject(error);
+    }
     
     // Only attempt refresh for 401 errors that haven't been retried
     if (error.response?.status === 401 && !originalRequest._retry) {

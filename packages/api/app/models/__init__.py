@@ -14,6 +14,8 @@ from app.models.subscription import Plan, Subscription
 from app.models.notification import Notification
 from app.models.collaboration import Comment, ActivityEvent
 from app.models.webhook import Webhook, WebhookDelivery
+from app.models.order import Order
+from app.models.bot_integration import BotIntegration
 
 __all__ = [
     "User",
@@ -41,9 +43,11 @@ __all__ = [
     "CalibrationError",
     "Plan",
     "Subscription",
+    "Order",
     "Notification",
     "Comment",
     "ActivityEvent",
     "Webhook",
     "WebhookDelivery",
+    "BotIntegration",
 ]

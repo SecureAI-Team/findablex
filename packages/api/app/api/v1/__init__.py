@@ -1,7 +1,7 @@
 """API v1 routes."""
 from fastapi import APIRouter
 
-from app.api.v1 import auth, projects, runs, reports, workspaces, admin, crawler, settings, invite_codes, calibration, subscriptions, analytics, drift_events, credentials, auto_checkup, payment, notifications, collaboration, webhooks
+from app.api.v1 import auth, projects, runs, reports, workspaces, admin, crawler, settings, invite_codes, calibration, subscriptions, analytics, drift_events, credentials, auto_checkup, payment, notifications, collaboration, webhooks, quick_checkup, referral, competitors, bot_integrations
 
 router = APIRouter()
 
@@ -24,3 +24,7 @@ router.include_router(payment.router, prefix="/payment", tags=["Payment"])
 router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 router.include_router(collaboration.router, prefix="/projects", tags=["Collaboration"])
 router.include_router(webhooks.router, tags=["Webhooks"])
+router.include_router(quick_checkup.router, prefix="/projects", tags=["Quick Checkup"])
+router.include_router(referral.router, tags=["Referral"])
+router.include_router(competitors.router, prefix="/projects", tags=["Competitors"])
+router.include_router(bot_integrations.router, tags=["Bot Integrations"])

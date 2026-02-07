@@ -10,6 +10,10 @@ import {
   CheckCircle,
   AlertTriangle,
   BarChart3,
+  Zap,
+  ArrowRight,
+  Share2,
+  Star,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -361,20 +365,69 @@ export default function SharePage() {
           </div>
         </div>
 
-        {/* CTA */}
-        <div className="text-center py-8 border-t border-slate-800">
-          <p className="text-slate-400 mb-4">想要监测您的品牌 GEO 可见性？</p>
-          <Link
-            href="/register"
-            className="inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white px-6 py-3 rounded-lg font-medium transition-all"
-          >
-            免费开始使用 FindableX
-          </Link>
+        {/* Viral CTA Section */}
+        <div className="bg-gradient-to-br from-primary-500/10 via-purple-500/10 to-pink-500/10 border border-primary-500/20 rounded-2xl p-8 lg:p-10 text-center">
+          <div className="w-14 h-14 bg-primary-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Zap className="w-7 h-7 text-primary-400" />
+          </div>
+          <h2 className="font-display text-2xl font-bold text-white mb-3">
+            免费体检你的品牌 AI 可见性
+          </h2>
+          <p className="text-slate-400 max-w-lg mx-auto mb-6">
+            上面的报告是 FindableX 为一个品牌生成的 GEO 体检报告。
+            想知道你的品牌在 ChatGPT、Perplexity、通义千问等 AI 搜索引擎中的表现吗？
+          </p>
+          
+          <div className="flex flex-wrap items-center justify-center gap-3 mb-6">
+            {['每月 5 次免费体检', '9 大 AI 引擎覆盖', '3 分钟出报告'].map((item) => (
+              <div key={item} className="flex items-center gap-1.5 text-sm text-slate-300">
+                <Star className="w-3.5 h-3.5 text-amber-400" />
+                {item}
+              </div>
+            ))}
+          </div>
+          
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link
+              href="/register"
+              className="inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white px-8 py-3.5 rounded-xl font-medium transition-all shadow-lg shadow-primary-500/25 hover:shadow-primary-500/40 hover:scale-[1.02]"
+            >
+              <Zap className="w-5 h-5" />
+              免费开始体检
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+            <Link
+              href="/sample-report"
+              className="inline-flex items-center gap-2 text-slate-400 hover:text-white px-6 py-3 transition-colors"
+            >
+              查看完整样例报告
+            </Link>
+          </div>
         </div>
       </main>
 
+      {/* Floating bottom CTA bar */}
+      <div className="fixed bottom-0 inset-x-0 bg-slate-800/95 backdrop-blur-sm border-t border-slate-700 py-3 z-40">
+        <div className="max-w-5xl mx-auto px-4 flex items-center justify-between">
+          <div className="hidden sm:flex items-center gap-2 text-sm text-slate-400">
+            <Share2 className="w-4 h-4" />
+            <span>通过 FindableX 分享</span>
+          </div>
+          <div className="flex items-center gap-3 mx-auto sm:mx-0">
+            <span className="text-sm text-slate-400 hidden sm:block">你的品牌在 AI 搜索中表现如何？</span>
+            <Link
+              href="/register"
+              className="inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white px-5 py-2 rounded-lg text-sm font-medium transition-all"
+            >
+              <Zap className="w-4 h-4" />
+              免费体检
+            </Link>
+          </div>
+        </div>
+      </div>
+
       {/* Footer */}
-      <footer className="border-t border-slate-800 py-6">
+      <footer className="border-t border-slate-800 py-6 mb-14">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-slate-500 text-sm">
           Powered by FindableX · GEO 体检平台
         </div>

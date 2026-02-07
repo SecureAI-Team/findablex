@@ -85,6 +85,9 @@ class Settings(BaseSettings):
     browser_profile_dir: str = "./data/browser_profiles"  # Persistent browser profiles
     use_persistent_context: bool = False  # Use persistent browser context
     
+    # Sentry
+    sentry_dsn: str = ""
+    
     # Celery
     celery_broker_url: str = "redis://localhost:6379/1"
     

@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import QuickCheckup from '@/components/QuickCheckup';
+import ReferralCard from '@/components/ReferralCard';
 
 interface Stats {
   projects_count: number;
@@ -158,6 +160,9 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Quick Checkup for new users */}
+        <QuickCheckup />
+
         {/* Getting Started Steps */}
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
           <h3 className="font-display text-lg font-semibold text-white mb-4">快速开始指南</h3>
@@ -298,30 +303,36 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        <Link
-          href="/projects/new"
-          className="bg-gradient-to-r from-primary-500/20 to-primary-600/20 rounded-xl p-6 border border-primary-500/30 hover:border-primary-500/50 transition-all group"
-        >
-          <h3 className="font-display text-lg font-semibold text-white group-hover:text-primary-300 transition-colors">
-            创建新项目
-          </h3>
-          <p className="mt-2 text-sm text-slate-400">
-            开始一个新的 GEO 体检项目，监测您的品牌可见性
-          </p>
-        </Link>
-        <Link
-          href="/reports"
-          className="bg-gradient-to-r from-accent-500/20 to-accent-600/20 rounded-xl p-6 border border-accent-500/30 hover:border-accent-500/50 transition-all group"
-        >
-          <h3 className="font-display text-lg font-semibold text-white group-hover:text-accent-300 transition-colors">
-            查看报告
-          </h3>
-          <p className="mt-2 text-sm text-slate-400">
-            浏览历史体检报告，追踪可见性变化趋势
-          </p>
-        </Link>
+      {/* One-click Checkup */}
+      <QuickCheckup />
+
+      {/* Quick Actions + Referral */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <Link
+            href="/projects/new"
+            className="bg-gradient-to-r from-primary-500/20 to-primary-600/20 rounded-xl p-6 border border-primary-500/30 hover:border-primary-500/50 transition-all group"
+          >
+            <h3 className="font-display text-lg font-semibold text-white group-hover:text-primary-300 transition-colors">
+              创建新项目
+            </h3>
+            <p className="mt-2 text-sm text-slate-400">
+              开始一个新的 GEO 体检项目，监测您的品牌可见性
+            </p>
+          </Link>
+          <Link
+            href="/reports"
+            className="bg-gradient-to-r from-accent-500/20 to-accent-600/20 rounded-xl p-6 border border-accent-500/30 hover:border-accent-500/50 transition-all group"
+          >
+            <h3 className="font-display text-lg font-semibold text-white group-hover:text-accent-300 transition-colors">
+              查看报告
+            </h3>
+            <p className="mt-2 text-sm text-slate-400">
+              浏览历史体检报告，追踪可见性变化趋势
+            </p>
+          </Link>
+        </div>
+        <ReferralCard />
       </div>
     </div>
   );

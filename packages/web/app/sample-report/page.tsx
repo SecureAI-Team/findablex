@@ -1,522 +1,348 @@
-'use client';
-
+import { Metadata } from 'next';
 import Link from 'next/link';
 import {
-  ArrowLeft,
   ArrowRight,
+  Check,
+  Eye,
+  BarChart3,
   TrendingUp,
   TrendingDown,
+  Minus,
+  Shield,
+  Globe,
+  MessageSquare,
+  Star,
   AlertTriangle,
   CheckCircle,
-  FileText,
-  Download,
-  Share2,
+  Target,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Header, Footer } from '@/components';
+import { generatePageMetadata, generateBreadcrumbSchema, JsonLd } from '@/lib/seo';
 
-// Note: 由于是 'use client'，metadata 需要在单独的 layout 或通过 generateMetadata 导出
-// 这里通过 Head 组件或父级 layout 处理 SEO
+export const metadata: Metadata = generatePageMetadata({
+  title: '样例报告 - AI 搜索可见性体检报告示例',
+  description:
+    'FindableX AI 搜索可见性体检报告样例。查看一份真实的 GEO 体检报告长什么样——品牌可见性评分、引擎覆盖率、引用质量分析和优化建议。无需注册即可查看。',
+  path: '/sample-report',
+});
 
-// 样例报告数据 - 与正式报告模板对齐
-const sampleReport = {
-  projectName: 'Acme 网络安全',
-  overallScore: 72,
-  generatedAt: '2026-01-26',
-  reportId: 'FX-A7B3C2D1',
-  scores: {
-    avi: { score: 68, label: 'AI 可见性指数 (AVI)', description: '品牌在 AI 引擎中被提及的覆盖程度' },
-    cqs: { score: 75, label: '引用质量评分 (CQS)', description: '引用来源的权威性和相关性评估' },
-    cpi: { score: 74, label: '竞争定位指数 (CPI)', description: '相对竞争对手的可见性优势' },
-  },
-  engineCoverage: [
-    { engine: 'ChatGPT', coverage: 85, trend: 'up', queries: 45, citations: 38 },
-    { engine: 'Perplexity', coverage: 72, trend: 'stable', queries: 45, citations: 32 },
-    { engine: 'DeepSeek', coverage: 78, trend: 'up', queries: 45, citations: 35 },
-    { engine: '通义千问', coverage: 65, trend: 'up', queries: 45, citations: 29 },
-    { engine: 'Kimi', coverage: 62, trend: 'stable', queries: 45, citations: 28 },
-  ],
-  topCompetitors: [
-    { name: '深信服', score: 82, citations: 156, share: '28%' },
-    { name: '奇安信', score: 78, citations: 134, share: '24%' },
-    { name: 'Acme', score: 72, citations: 98, isYou: true, share: '18%' },
-    { name: '启明星辰', score: 65, citations: 87, share: '16%' },
-  ],
-  topCitationSources: [
-    { domain: 'freebuf.com', count: 23, title: 'FreeBuf 安全社区' },
-    { domain: 'secrss.com', count: 18, title: '安全内参' },
-    { domain: 'anquanke.com', count: 15, title: '安全客' },
-    { domain: 'acme-security.com', count: 12, title: 'Acme 官网', isYou: true },
-    { domain: '36kr.com', count: 9, title: '36氪' },
-  ],
-  queryDistribution: {
-    byStage: [
-      { stage: '认知阶段', count: 18, percentage: 40 },
-      { stage: '考虑阶段', count: 15, percentage: 33 },
-      { stage: '决策阶段', count: 12, percentage: 27 },
-    ],
-    byRisk: [
-      { level: '低风险', count: 28, percentage: 62 },
-      { level: '中风险', count: 12, percentage: 27 },
-      { level: '高风险', count: 5, percentage: 11 },
-    ],
-  },
-  calibrationErrors: [
-    { query: '工业网络安全解决方案', error: '将 Acme 描述为"美国公司"，实为中国本土企业', severity: 'high' },
-    { query: '零信任架构厂商', error: '未提及 Acme 的零信任产品线', severity: 'medium' },
-  ],
-  driftWarning: {
-    hasWarning: true,
-    message: '近7天可见性下降趋势',
-    change: -5,
-    affectedEngines: ['Google SGE'],
-  },
-  insights: [
-    { type: 'positive', text: 'ChatGPT 中的引用率较上月提升了 12%' },
-    { type: 'positive', text: '品牌在"网络安全最佳实践"相关问题中表现优秀' },
-    { type: 'warning', text: 'Google SGE 中的可见性下降 5%，需要关注' },
-    { type: 'warning', text: '检测到 2 处口径错误需要修正' },
-    { type: 'info', text: '建议优化"零信任架构"相关内容以提升覆盖' },
-  ],
-  recommendations: [
-    {
-      priority: 'high',
-      title: '修正口径错误',
-      description: 'AI 引擎存在关于品牌的错误描述，可能影响用户认知',
-      actions: ['联系 AI 平台提交纠错反馈', '在官网强化正确信息展示'],
-    },
-    {
-      priority: 'high',
-      title: '优化技术白皮书',
-      description: '当前技术内容在 AI 引擎中的引用率较低',
-      actions: ['添加更多结构化数据和 Schema 标记', '增加权威第三方引用来源'],
-    },
-    {
-      priority: 'medium',
-      title: '增加案例研究',
-      description: 'AI 引擎倾向于引用具体案例',
-      actions: ['发布更多客户成功案例', '在行业媒体投放案例内容'],
-    },
-    {
-      priority: 'medium',
-      title: '提升权威性信号',
-      description: '增加行业认证、专家背书等信息',
-      actions: ['展示行业资质和认证', '邀请专家背书或联名发布'],
-    },
-  ],
-};
+// ── Sample data ─────────────────────────────────────────────────────
+const sampleBrand = '示例科技';
+const reportDate = '2026-02-01';
 
-function ScoreRing({ score, size = 120, label }: { score: number; size?: number; label: string }) {
-  const circumference = 2 * Math.PI * 45;
-  const offset = circumference - (score / 100) * circumference;
-  
-  const getColor = (s: number) => {
-    if (s >= 80) return '#22c55e';
-    if (s >= 60) return '#eab308';
-    return '#ef4444';
-  };
-  
+const overallScore = 72;
+
+const engines = [
+  { name: 'ChatGPT', score: 85, mentioned: true, cited: true, rank: 2, trend: 'up' as const },
+  { name: 'Perplexity', score: 78, mentioned: true, cited: true, rank: 3, trend: 'up' as const },
+  { name: '通义千问', score: 65, mentioned: true, cited: false, rank: 5, trend: 'stable' as const },
+  { name: 'Kimi', score: 60, mentioned: true, cited: false, rank: 4, trend: 'down' as const },
+  { name: 'DeepSeek', score: 55, mentioned: false, cited: false, rank: null, trend: 'down' as const },
+  { name: '文心一言', score: 70, mentioned: true, cited: true, rank: 3, trend: 'stable' as const },
+];
+
+const queries = [
+  { query: '最好的企业级SaaS工具', visibility: 90, mentioned: true },
+  { query: '如何选择项目管理软件', visibility: 75, mentioned: true },
+  { query: '国内最好的协同办公平台', visibility: 60, mentioned: true },
+  { query: '中小企业数字化转型方案', visibility: 45, mentioned: false },
+  { query: 'SaaS产品对比评测', visibility: 80, mentioned: true },
+];
+
+const recommendations = [
+  {
+    priority: 'high',
+    title: '增加结构化数据标记',
+    description: '在官网添加 JSON-LD Schema 标记，帮助 AI 引擎更准确地提取品牌信息。',
+  },
+  {
+    priority: 'high',
+    title: '优化品牌相关内容覆盖',
+    description: '在 DeepSeek 和 Kimi 中品牌可见性较低，建议通过高质量第三方内容提升覆盖。',
+  },
+  {
+    priority: 'medium',
+    title: '提高引用率',
+    description: '通义千问和 Kimi 中品牌被提及但未被引用，建议优化权威来源内容。',
+  },
+  {
+    priority: 'medium',
+    title: '发布对比类内容',
+    description: '针对"对比评测"类查询创建专业的对比文章，提升在该类查询中的表现。',
+  },
+  {
+    priority: 'low',
+    title: '定期复测',
+    description: '建议每 2 周进行一次体检，追踪各引擎的可见性变化趋势。',
+  },
+];
+
+// ── Helpers ──────────────────────────────────────────────────────────
+
+function TrendIcon({ trend }: { trend: 'up' | 'down' | 'stable' }) {
+  if (trend === 'up') return <TrendingUp className="w-4 h-4 text-green-400" />;
+  if (trend === 'down') return <TrendingDown className="w-4 h-4 text-red-400" />;
+  return <Minus className="w-4 h-4 text-slate-400" />;
+}
+
+function ScoreBar({ score, color = 'primary' }: { score: number; color?: string }) {
+  const colorClass =
+    score >= 80
+      ? 'bg-green-500'
+      : score >= 60
+        ? 'bg-primary-500'
+        : score >= 40
+          ? 'bg-amber-500'
+          : 'bg-red-500';
+
   return (
-    <div className="flex flex-col items-center">
-      <svg width={size} height={size} className="-rotate-90">
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={45}
-          fill="none"
-          stroke="#334155"
-          strokeWidth="8"
-        />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={45}
-          fill="none"
-          stroke={getColor(score)}
-          strokeWidth="8"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          className="transition-all duration-1000"
-        />
-      </svg>
-      <div className="absolute flex flex-col items-center justify-center" style={{ width: size, height: size }}>
-        <span className="text-3xl font-bold text-white">{score}</span>
-      </div>
-      <span className="mt-2 text-sm text-slate-400">{label}</span>
+    <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+      <div
+        className={`h-full rounded-full transition-all ${colorClass}`}
+        style={{ width: `${score}%` }}
+      />
     </div>
   );
 }
 
+function PriorityBadge({ priority }: { priority: string }) {
+  const cls =
+    priority === 'high'
+      ? 'bg-red-500/10 text-red-400 border-red-500/20'
+      : priority === 'medium'
+        ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+        : 'bg-slate-500/10 text-slate-400 border-slate-500/20';
+  const label = priority === 'high' ? '高' : priority === 'medium' ? '中' : '低';
+  return (
+    <span className={`text-xs px-2 py-0.5 rounded border ${cls}`}>{label}</span>
+  );
+}
+
+// ── Page ─────────────────────────────────────────────────────────────
+
 export default function SampleReportPage() {
   return (
-    <div className="min-h-screen bg-slate-900">
-      {/* Header */}
-      <div className="bg-slate-800/50 border-b border-slate-700">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
-            <ArrowLeft className="w-4 h-4" />
-            返回首页
-          </Link>
-          <div className="flex items-center gap-3">
-            <span className="px-3 py-1 bg-primary-500/20 text-primary-400 rounded-full text-sm">
-              样例报告
-            </span>
-            <Link
-              href="/register"
-              className="bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-            >
-              免费创建我的报告
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-        </div>
-      </div>
+    <>
+      <JsonLd
+        data={generateBreadcrumbSchema([
+          { name: '首页', url: '/' },
+          { name: '样例报告', url: '/sample-report' },
+        ])}
+      />
+      <div className="min-h-screen bg-slate-900">
+        <Header />
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Report Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <FileText className="w-8 h-8 text-primary-400" />
-              <div>
-                <h1 className="text-2xl font-bold text-white">
-                  {sampleReport.projectName} - AI 可见性研究报告
-                </h1>
-                <p className="text-slate-400 text-sm">
-                  生成时间: {sampleReport.generatedAt} · 报告编号: {sampleReport.reportId}
-                </p>
-              </div>
-            </div>
-            <div className="hidden md:block">
-              <span className="px-3 py-1 bg-amber-500/20 text-amber-400 rounded-full text-sm">
-                📋 样例报告
+        {/* Hero */}
+        <section className="pt-32 lg:pt-40 pb-10">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-xs bg-primary-500/10 text-primary-400 border border-primary-500/20 px-2 py-0.5 rounded">
+                样例报告
               </span>
+              <span className="text-xs text-slate-500">{reportDate}</span>
             </div>
+            <h1 className="font-display text-3xl lg:text-4xl font-bold text-white mb-3">
+              「{sampleBrand}」AI 搜索可见性体检报告
+            </h1>
+            <p className="text-slate-400 text-lg max-w-2xl">
+              这是一份 FindableX 生成的真实体检报告示例，展示品牌在主流 AI 搜索引擎中的表现。
+              <strong className="text-slate-300">无需注册即可查看。</strong>
+            </p>
           </div>
-        </div>
+        </section>
 
         {/* Overall Score */}
-        <div className="bg-gradient-to-r from-slate-800/50 to-slate-800/30 rounded-2xl border border-slate-700/50 p-8 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 items-center">
-            <div className="md:col-span-1 flex justify-center">
-              <div className="relative">
-                <ScoreRing score={sampleReport.overallScore} size={160} label="综合评分" />
+        <section className="pb-12">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="grid md:grid-cols-4 gap-6">
+              {/* Main score */}
+              <div className="md:col-span-1 bg-slate-800/50 rounded-xl border border-slate-700/50 p-6 text-center">
+                <div className="relative w-32 h-32 mx-auto mb-4">
+                  <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
+                    <circle cx="60" cy="60" r="52" fill="none" stroke="#334155" strokeWidth="8" />
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r="52"
+                      fill="none"
+                      stroke="url(#scoreGradient)"
+                      strokeWidth="8"
+                      strokeLinecap="round"
+                      strokeDasharray={`${overallScore * 3.27} 327`}
+                    />
+                    <defs>
+                      <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#6366f1" />
+                        <stop offset="100%" stopColor="#a855f7" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-4xl font-bold text-white">{overallScore}</span>
+                  </div>
+                </div>
+                <p className="text-sm text-slate-400">综合可见性评分</p>
               </div>
-            </div>
-            <div className="md:col-span-3 grid grid-cols-3 gap-6">
-              {Object.entries(sampleReport.scores).map(([key, data]) => (
-                <div key={key} className="text-center">
-                  <div className="relative inline-flex">
-                    <ScoreRing score={data.score} size={100} label={data.label} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          {/* Engine Coverage */}
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
-            <h2 className="text-lg font-semibold text-white mb-6">📊 AI 引擎覆盖分析</h2>
-            <div className="space-y-4">
-              {sampleReport.engineCoverage.map((item) => (
-                <div key={item.engine} className="flex items-center justify-between">
-                  <span className="text-slate-300">{item.engine}</span>
-                  <div className="flex items-center gap-3">
-                    <div className="w-32 h-2 bg-slate-700 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-primary-500 to-accent-500 rounded-full transition-all"
-                        style={{ width: `${item.coverage}%` }}
-                      />
+              {/* Quick stats */}
+              <div className="md:col-span-3 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {[
+                  { label: '覆盖引擎', value: `${engines.filter(e => e.mentioned).length}/${engines.length}`, icon: Globe },
+                  { label: '被引用', value: `${engines.filter(e => e.cited).length} 次`, icon: MessageSquare },
+                  { label: '查询覆盖', value: `${queries.filter(q => q.mentioned).length}/${queries.length}`, icon: Target },
+                  { label: '平均排名', value: '#3.4', icon: Star },
+                  { label: '上升引擎', value: `${engines.filter(e => e.trend === 'up').length}`, icon: TrendingUp },
+                  { label: '需关注', value: `${recommendations.filter(r => r.priority === 'high').length}`, icon: AlertTriangle },
+                ].map((stat, i) => (
+                  <div key={i} className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <stat.icon className="w-4 h-4 text-slate-500" />
+                      <span className="text-xs text-slate-500">{stat.label}</span>
                     </div>
-                    <span className="text-white font-medium w-12">{item.coverage}%</span>
-                    {item.trend === 'up' && <TrendingUp className="w-4 h-4 text-green-400" />}
-                    {item.trend === 'down' && <TrendingDown className="w-4 h-4 text-red-400" />}
+                    <p className="text-xl font-bold text-white">{stat.value}</p>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Competitive Analysis */}
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
-            <h2 className="text-lg font-semibold text-white mb-6">🏆 竞争格局分析</h2>
-            <div className="space-y-3">
-              {sampleReport.topCompetitors.map((item, idx) => (
-                <div
-                  key={item.name}
-                  className={cn(
-                    'flex items-center justify-between p-3 rounded-lg',
-                    item.isYou ? 'bg-primary-500/10 border border-primary-500/30' : 'bg-slate-700/30'
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-slate-500 w-6">{idx + 1}</span>
-                    <span className={cn('font-medium', item.isYou ? 'text-primary-400' : 'text-white')}>
-                      {item.name}
-                      {item.isYou && <span className="ml-2 text-xs">(您的品牌)</span>}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-slate-400 text-sm">{item.share}</span>
-                    <span className="text-white font-bold">{item.score}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Top Citation Sources & Query Distribution */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          {/* Top Citation Sources */}
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
-            <h2 className="text-lg font-semibold text-white mb-6">🔗 Top 引用来源</h2>
-            <div className="space-y-3">
-              {sampleReport.topCitationSources.map((source, idx) => (
-                <div
-                  key={source.domain}
-                  className={cn(
-                    'flex items-center justify-between p-3 rounded-lg',
-                    source.isYou ? 'bg-green-500/10 border border-green-500/30' : 'bg-slate-700/30'
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-slate-500 w-6">{idx + 1}</span>
-                    <div>
-                      <span className={cn('font-medium', source.isYou ? 'text-green-400' : 'text-white')}>
-                        {source.title}
-                      </span>
-                      <span className="text-slate-500 text-xs ml-2">{source.domain}</span>
-                    </div>
-                  </div>
-                  <span className="text-white font-medium">{source.count} 次</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Query Distribution */}
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
-            <h2 className="text-lg font-semibold text-white mb-6">📈 问题集分布</h2>
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-sm text-slate-400 mb-3">按采购阶段</h3>
-                <div className="space-y-2">
-                  {sampleReport.queryDistribution.byStage.map((item) => (
-                    <div key={item.stage} className="flex items-center justify-between">
-                      <span className="text-slate-300 text-sm">{item.stage}</span>
-                      <div className="flex items-center gap-2">
-                        <div className="w-24 h-2 bg-slate-700 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-blue-500 rounded-full"
-                            style={{ width: `${item.percentage}%` }}
-                          />
-                        </div>
-                        <span className="text-slate-400 text-xs w-8">{item.percentage}%</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <h3 className="text-sm text-slate-400 mb-3">按风险等级</h3>
-                <div className="space-y-2">
-                  {sampleReport.queryDistribution.byRisk.map((item) => (
-                    <div key={item.level} className="flex items-center justify-between">
-                      <span className="text-slate-300 text-sm">{item.level}</span>
-                      <div className="flex items-center gap-2">
-                        <div className="w-24 h-2 bg-slate-700 rounded-full overflow-hidden">
-                          <div
-                            className={cn(
-                              'h-full rounded-full',
-                              item.level === '低风险' ? 'bg-green-500' :
-                              item.level === '中风险' ? 'bg-yellow-500' : 'bg-red-500'
-                            )}
-                            style={{ width: `${item.percentage}%` }}
-                          />
-                        </div>
-                        <span className="text-slate-400 text-xs w-8">{item.percentage}%</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                ))}
               </div>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* Calibration Errors (Drift Warning) */}
-        {sampleReport.calibrationErrors.length > 0 && (
-          <div className="bg-red-500/10 rounded-xl border border-red-500/30 p-6 mb-8">
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-red-400" />
-              ⚠️ 口径错误清单
+        {/* Engine Breakdown */}
+        <section className="py-12 bg-slate-800/30">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 className="font-display text-xl font-bold text-white mb-6 flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-primary-400" />
+              各引擎表现
             </h2>
-            <p className="text-slate-400 text-sm mb-4">
-              以下为 AI 引擎对您品牌的错误描述，建议及时修正以避免用户误解
-            </p>
             <div className="space-y-3">
-              {sampleReport.calibrationErrors.map((error, idx) => (
+              {engines.map((engine) => (
                 <div
-                  key={idx}
-                  className={cn(
-                    'p-4 rounded-lg border-l-4',
-                    error.severity === 'high' ? 'bg-red-500/10 border-red-500' : 'bg-yellow-500/10 border-yellow-500'
-                  )}
+                  key={engine.name}
+                  className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-4 flex items-center gap-4"
                 >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-white font-medium text-sm">{error.query}</p>
-                      <p className="text-slate-400 text-sm mt-1">{error.error}</p>
-                    </div>
-                    <span
-                      className={cn(
-                        'px-2 py-0.5 rounded text-xs font-medium',
-                        error.severity === 'high' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'
-                      )}
-                    >
-                      {error.severity === 'high' ? '高优先' : '中优先'}
-                    </span>
+                  <div className="w-24 text-sm font-medium text-white">{engine.name}</div>
+                  <div className="flex-1">
+                    <ScoreBar score={engine.score} />
+                  </div>
+                  <div className="w-12 text-right text-sm font-mono text-slate-300">{engine.score}</div>
+                  <div className="flex items-center gap-3 w-32 justify-end">
+                    {engine.mentioned ? (
+                      <span className="text-xs bg-green-500/10 text-green-400 px-2 py-0.5 rounded">提及</span>
+                    ) : (
+                      <span className="text-xs bg-slate-700 text-slate-500 px-2 py-0.5 rounded">未提及</span>
+                    )}
+                    {engine.cited && (
+                      <span className="text-xs bg-primary-500/10 text-primary-400 px-2 py-0.5 rounded">引用</span>
+                    )}
+                    <TrendIcon trend={engine.trend} />
                   </div>
                 </div>
               ))}
             </div>
           </div>
-        )}
+        </section>
 
-        {/* Drift Warning */}
-        {sampleReport.driftWarning.hasWarning && (
-          <div className="bg-amber-500/10 rounded-xl border border-amber-500/30 p-6 mb-8">
-            <h2 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
-              <TrendingDown className="w-5 h-5 text-amber-400" />
-              📉 漂移预警
+        {/* Query Performance */}
+        <section className="py-12">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 className="font-display text-xl font-bold text-white mb-6 flex items-center gap-2">
+              <Eye className="w-5 h-5 text-primary-400" />
+              查询词表现
             </h2>
-            <p className="text-slate-300">
-              {sampleReport.driftWarning.message}：可见性变化 
-              <span className="text-red-400 font-medium ml-1">{sampleReport.driftWarning.change}%</span>
-            </p>
-            <p className="text-slate-400 text-sm mt-1">
-              受影响引擎: {sampleReport.driftWarning.affectedEngines.join(', ')}
-            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-700">
+                    <th className="text-left py-3 px-4 text-sm text-slate-400 font-medium">查询词</th>
+                    <th className="text-center py-3 px-4 text-sm text-slate-400 font-medium w-48">可见性</th>
+                    <th className="text-center py-3 px-4 text-sm text-slate-400 font-medium w-24">状态</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-700/50">
+                  {queries.map((q, i) => (
+                    <tr key={i} className="hover:bg-slate-800/30">
+                      <td className="py-3 px-4 text-sm text-slate-300">{q.query}</td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-3">
+                          <ScoreBar score={q.visibility} />
+                          <span className="text-sm font-mono text-slate-400 w-8">{q.visibility}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        {q.mentioned ? (
+                          <CheckCircle className="w-4 h-4 text-green-400 mx-auto" />
+                        ) : (
+                          <AlertTriangle className="w-4 h-4 text-amber-400 mx-auto" />
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        )}
-
-        {/* Insights */}
-        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6 mb-8">
-          <h2 className="text-lg font-semibold text-white mb-6">关键洞察</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {sampleReport.insights.map((insight, idx) => (
-              <div
-                key={idx}
-                className={cn(
-                  'p-4 rounded-lg border-l-4 flex items-start gap-3',
-                  insight.type === 'positive' && 'bg-green-500/10 border-green-500',
-                  insight.type === 'warning' && 'bg-yellow-500/10 border-yellow-500',
-                  insight.type === 'info' && 'bg-blue-500/10 border-blue-500'
-                )}
-              >
-                {insight.type === 'positive' && <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />}
-                {insight.type === 'warning' && <AlertTriangle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />}
-                {insight.type === 'info' && <FileText className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />}
-                <span className="text-slate-300">{insight.text}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        </section>
 
         {/* Recommendations */}
-        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6 mb-8">
-          <h2 className="text-lg font-semibold text-white mb-6">💡 优化建议</h2>
-          <div className="space-y-4">
-            {sampleReport.recommendations.map((rec, idx) => (
-              <div key={idx} className="p-4 bg-slate-700/30 rounded-lg">
-                <div className="flex items-center gap-3 mb-2">
-                  <span
-                    className={cn(
-                      'px-2 py-0.5 rounded text-xs font-medium',
-                      rec.priority === 'high' && 'bg-red-500/20 text-red-400',
-                      rec.priority === 'medium' && 'bg-yellow-500/20 text-yellow-400'
-                    )}
-                  >
-                    {rec.priority === 'high' ? '高优先' : '中优先'}
-                  </span>
-                  <h3 className="font-medium text-white">{rec.title}</h3>
+        <section className="py-12 bg-slate-800/30">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 className="font-display text-xl font-bold text-white mb-6 flex items-center gap-2">
+              <Shield className="w-5 h-5 text-primary-400" />
+              优化建议
+            </h2>
+            <div className="space-y-3">
+              {recommendations.map((rec, i) => (
+                <div
+                  key={i}
+                  className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5">
+                      <PriorityBadge priority={rec.priority} />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-white mb-1">{rec.title}</h3>
+                      <p className="text-sm text-slate-400">{rec.description}</p>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-slate-400 text-sm mb-3">{rec.description}</p>
-                {rec.actions && rec.actions.length > 0 && (
-                  <ul className="space-y-1">
-                    {rec.actions.map((action, actionIdx) => (
-                      <li key={actionIdx} className="text-slate-300 text-sm flex items-start gap-2">
-                        <span className="text-primary-400 mt-0.5">•</span>
-                        {action}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        </section>
 
         {/* CTA */}
-        <div className="bg-gradient-to-r from-primary-500/20 to-accent-500/20 rounded-2xl border border-primary-500/30 p-8">
-          <div className="flex flex-col md:flex-row items-center justify-center gap-8">
-            {/* Left: Text */}
-            <div className="text-center md:text-left">
-              <h2 className="text-2xl font-bold text-white mb-4">
-                想要获得您品牌的专属报告？
+        <section className="py-20">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <div className="bg-gradient-to-br from-primary-500/10 to-purple-500/10 border border-primary-500/20 rounded-2xl p-8 lg:p-12">
+              <h2 className="font-display text-2xl lg:text-3xl font-bold text-white mb-4">
+                想看看你的品牌表现？
               </h2>
-              <p className="text-slate-300 mb-6 max-w-lg">
-                免费注册即可体验 10 条查询词的完整体检，获得详细的 AI 可见性分析报告。
+              <p className="text-slate-400 mb-8 max-w-lg mx-auto">
+                免费注册 FindableX，获取您的品牌在 9 大 AI 搜索引擎中的可见性体检报告。
+                每月 5 次免费体检。
               </p>
-              <div className="flex flex-col sm:flex-row items-center gap-4 justify-center md:justify-start">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <Link
                   href="/register"
-                  className="bg-primary-500 hover:bg-primary-600 text-white px-8 py-3 rounded-xl font-medium transition-colors flex items-center gap-2"
+                  className="inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white px-8 py-3 rounded-xl font-medium transition-all shadow-lg shadow-primary-500/25 hover:shadow-primary-500/40"
                 >
-                  开始体检（免费 10 条）
-                  <ArrowRight className="w-5 h-5" />
+                  免费开始体检
+                  <ArrowRight className="w-4 h-4" />
                 </Link>
                 <Link
-                  href="/"
-                  className="text-slate-300 hover:text-white px-6 py-3 rounded-xl font-medium border border-slate-600 hover:border-slate-500 transition-colors"
+                  href="/pricing"
+                  className="inline-flex items-center gap-2 text-slate-400 hover:text-white px-6 py-3 rounded-xl font-medium transition-colors"
                 >
-                  了解更多
+                  查看定价方案
                 </Link>
               </div>
             </div>
-            
-            {/* Right: WeChat QR */}
-            <div className="flex flex-col items-center">
-              <img 
-                src="/wechat-qrcode.jpg" 
-                alt="FindableX 公众号" 
-                className="w-32 h-32 rounded-lg border border-slate-600"
-              />
-              <p className="text-slate-400 text-sm mt-3 text-center">
-                关注公众号<br/>获取 GEO 最新资讯
-              </p>
-            </div>
           </div>
-        </div>
-      </div>
+        </section>
 
-      {/* Footer Note */}
-      <div className="bg-slate-800/30 border-t border-slate-700 mt-12 py-6 text-center text-slate-500 text-sm space-y-2">
-        <p>
-          注：这是一份样例报告，数据为演示用途。您的实际报告将基于真实的 AI 引擎数据分析。
-        </p>
-        <a
-          href="https://beian.miit.gov.cn/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hover:text-slate-400 transition-colors"
-        >
-          苏ICP备2026005817号
-        </a>
+        <Footer />
       </div>
-    </div>
+    </>
   );
 }

@@ -24,6 +24,7 @@ import { clsx } from 'clsx';
 import { analytics } from '@/lib/analytics';
 import NotificationBell from '@/components/NotificationBell';
 import ExtensionBanner from '@/components/ExtensionBanner';
+import UpgradeModal from '@/components/UpgradeModal';
 
 const navigation = [
   { name: '概览', href: '/dashboard', icon: Home },
@@ -304,6 +305,9 @@ export default function DashboardLayout({
           </a>
         </footer>
       </div>
+
+      {/* Global upgrade prompt */}
+      <UpgradeModal />
     </div>
   );
 }

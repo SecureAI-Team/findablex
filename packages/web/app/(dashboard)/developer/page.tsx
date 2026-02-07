@@ -143,7 +143,7 @@ const METHOD_COLORS: Record<string, string> = {
   DELETE: 'bg-red-500/10 text-red-400',
 };
 
-type TabId = 'docs' | 'webhooks';
+type TabId = 'docs' | 'webhooks' | 'bots';
 
 export default function DeveloperPage() {
   const [activeTab, setActiveTab] = useState<TabId>('docs');
@@ -163,6 +163,16 @@ export default function DeveloperPage() {
   const [newEvents, setNewEvents] = useState<string[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState('');
+
+  // Bot integrations
+  const [feishuUrl, setFeishuUrl] = useState('');
+  const [wecomUrl, setWecomUrl] = useState('');
+  const [feishuEvents, setFeishuEvents] = useState<string[]>(['checkup_complete', 'drift_detected', 'weekly_digest']);
+  const [wecomEvents, setWecomEvents] = useState<string[]>(['checkup_complete', 'drift_detected', 'weekly_digest']);
+  const [isSavingBots, setIsSavingBots] = useState(false);
+  const [botSaveSuccess, setBotSaveSuccess] = useState(false);
+  const [botTestResult, setBotTestResult] = useState<{ platform: string; success: boolean; error?: string } | null>(null);
+  const [testingBot, setTestingBot] = useState<string | null>(null);
 
   useEffect(() => {
     // Get workspace ID
@@ -194,6 +204,9 @@ export default function DeveloperPage() {
     if (workspaceId && activeTab === 'webhooks') {
       fetchWebhooks();
     }
+    if (workspaceId && activeTab === 'bots') {
+      fetchBotIntegrations();
+    }
   }, [workspaceId, activeTab]);
 
   const fetchWebhooks = async () => {
@@ -206,6 +219,85 @@ export default function DeveloperPage() {
       console.error('Failed to fetch webhooks:', err);
     } finally {
       setIsLoadingWebhooks(false);
+    }
+  };
+
+  const fetchBotIntegrations = async () => {
+    if (!workspaceId) return;
+    try {
+      const res = await api.get(`/workspaces/${workspaceId}/bots`);
+      const bots: any[] = res.data || [];
+      for (const b of bots) {
+        if (b.platform === 'feishu') {
+          setFeishuUrl(b.webhook_url || '');
+          setFeishuEvents(b.events || []);
+        } else if (b.platform === 'wecom') {
+          setWecomUrl(b.webhook_url || '');
+          setWecomEvents(b.events || []);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch bot integrations:', err);
+    }
+  };
+
+  const handleSaveBots = async () => {
+    if (!workspaceId) return;
+    setIsSavingBots(true);
+    setBotSaveSuccess(false);
+    try {
+      const promises: Promise<any>[] = [];
+      if (feishuUrl.trim()) {
+        promises.push(
+          api.put(`/workspaces/${workspaceId}/bots`, {
+            platform: 'feishu',
+            webhook_url: feishuUrl.trim(),
+            events: feishuEvents,
+            is_active: true,
+          })
+        );
+      }
+      if (wecomUrl.trim()) {
+        promises.push(
+          api.put(`/workspaces/${workspaceId}/bots`, {
+            platform: 'wecom',
+            webhook_url: wecomUrl.trim(),
+            events: wecomEvents,
+            is_active: true,
+          })
+        );
+      }
+      await Promise.all(promises);
+      setBotSaveSuccess(true);
+      setTimeout(() => setBotSaveSuccess(false), 3000);
+    } catch (err) {
+      console.error('Failed to save bot integrations:', err);
+    } finally {
+      setIsSavingBots(false);
+    }
+  };
+
+  const handleTestBot = async (platform: string) => {
+    if (!workspaceId) return;
+    setTestingBot(platform);
+    setBotTestResult(null);
+    try {
+      const res = await api.post(`/workspaces/${workspaceId}/bots/${platform}/test`);
+      setBotTestResult({ platform, success: res.data.success, error: res.data.error });
+    } catch (err: any) {
+      setBotTestResult({ platform, success: false, error: err?.message || 'Failed' });
+    } finally {
+      setTestingBot(null);
+    }
+  };
+
+  const toggleBotEvent = (platform: 'feishu' | 'wecom', event: string) => {
+    const setter = platform === 'feishu' ? setFeishuEvents : setWecomEvents;
+    const current = platform === 'feishu' ? feishuEvents : wecomEvents;
+    if (current.includes(event)) {
+      setter(current.filter((e) => e !== event));
+    } else {
+      setter([...current, event]);
     }
   };
 
@@ -306,6 +398,7 @@ export default function DeveloperPage() {
   const tabs = [
     { id: 'docs' as const, label: 'API 文档', icon: BookOpen },
     { id: 'webhooks' as const, label: 'Webhooks', icon: Webhook },
+    { id: 'bots' as const, label: '机器人集成', icon: Globe },
   ];
 
   return (
@@ -769,6 +862,196 @@ console.log(\`最佳引擎: \${trends.summary.best_engine}\`);`}</pre>
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Bot Integrations Tab */}
+      {activeTab === 'bots' && (
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
+          <h2 className="font-medium text-white mb-2">飞书 / 企业微信 机器人</h2>
+          <p className="text-sm text-slate-400 mb-6">
+            配置机器人 Webhook URL，在体检完成、指标漂移等事件发生时自动推送通知。
+          </p>
+
+          <div className="space-y-6">
+            {/* Feishu */}
+            <div className="p-4 bg-slate-700/20 rounded-lg border border-slate-700/40">
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-sm font-medium text-slate-300">
+                  飞书 Webhook URL
+                </label>
+                {feishuUrl.trim() && (
+                  <button
+                    onClick={() => handleTestBot('feishu')}
+                    disabled={testingBot === 'feishu'}
+                    className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors disabled:opacity-50"
+                  >
+                    {testingBot === 'feishu' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+                    发送测试
+                  </button>
+                )}
+              </div>
+              <input
+                type="url"
+                value={feishuUrl}
+                onChange={(e) => setFeishuUrl(e.target.value)}
+                placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/..."
+                className="w-full px-4 py-2.5 bg-slate-700/50 border border-slate-600 rounded-lg text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-primary-500"
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                在飞书群中添加"自定义机器人"后获取 Webhook 地址
+              </p>
+              {botTestResult?.platform === 'feishu' && (
+                <div className={cn('mt-2 flex items-center gap-1.5 text-xs', botTestResult.success ? 'text-green-400' : 'text-red-400')}>
+                  {botTestResult.success ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                  {botTestResult.success ? '测试消息发送成功' : `发送失败: ${botTestResult.error || '未知错误'}`}
+                </div>
+              )}
+
+              {/* Feishu events */}
+              <div className="mt-3">
+                <span className="text-xs text-slate-400 mb-1.5 block">推送事件</span>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { id: 'checkup_complete', label: '体检完成' },
+                    { id: 'drift_detected', label: '指标漂移' },
+                    { id: 'weekly_digest', label: '周报' },
+                  ].map((evt) => (
+                    <button
+                      key={evt.id}
+                      onClick={() => toggleBotEvent('feishu', evt.id)}
+                      className={cn(
+                        'px-3 py-1 rounded-full text-xs font-medium transition-all border',
+                        feishuEvents.includes(evt.id)
+                          ? 'bg-primary-500/20 text-primary-400 border-primary-500/40'
+                          : 'bg-slate-700/30 text-slate-500 border-slate-600/40 hover:text-slate-300'
+                      )}
+                    >
+                      {evt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* WeCom */}
+            <div className="p-4 bg-slate-700/20 rounded-lg border border-slate-700/40">
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-sm font-medium text-slate-300">
+                  企业微信 Webhook URL
+                </label>
+                {wecomUrl.trim() && (
+                  <button
+                    onClick={() => handleTestBot('wecom')}
+                    disabled={testingBot === 'wecom'}
+                    className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors disabled:opacity-50"
+                  >
+                    {testingBot === 'wecom' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+                    发送测试
+                  </button>
+                )}
+              </div>
+              <input
+                type="url"
+                value={wecomUrl}
+                onChange={(e) => setWecomUrl(e.target.value)}
+                placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..."
+                className="w-full px-4 py-2.5 bg-slate-700/50 border border-slate-600 rounded-lg text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-primary-500"
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                在企业微信群中添加"群机器人"后获取 Webhook 地址
+              </p>
+              {botTestResult?.platform === 'wecom' && (
+                <div className={cn('mt-2 flex items-center gap-1.5 text-xs', botTestResult.success ? 'text-green-400' : 'text-red-400')}>
+                  {botTestResult.success ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                  {botTestResult.success ? '测试消息发送成功' : `发送失败: ${botTestResult.error || '未知错误'}`}
+                </div>
+              )}
+
+              {/* WeCom events */}
+              <div className="mt-3">
+                <span className="text-xs text-slate-400 mb-1.5 block">推送事件</span>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { id: 'checkup_complete', label: '体检完成' },
+                    { id: 'drift_detected', label: '指标漂移' },
+                    { id: 'weekly_digest', label: '周报' },
+                  ].map((evt) => (
+                    <button
+                      key={evt.id}
+                      onClick={() => toggleBotEvent('wecom', evt.id)}
+                      className={cn(
+                        'px-3 py-1 rounded-full text-xs font-medium transition-all border',
+                        wecomEvents.includes(evt.id)
+                          ? 'bg-primary-500/20 text-primary-400 border-primary-500/40'
+                          : 'bg-slate-700/30 text-slate-500 border-slate-600/40 hover:text-slate-300'
+                      )}
+                    >
+                      {evt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Save button */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleSaveBots}
+                disabled={isSavingBots || (!feishuUrl.trim() && !wecomUrl.trim())}
+                className="bg-primary-500 hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-lg font-medium text-sm transition-all flex items-center gap-2"
+              >
+                {isSavingBots ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                保存配置
+              </button>
+              {botSaveSuccess && (
+                <span className="flex items-center gap-1.5 text-sm text-green-400">
+                  <CheckCircle className="w-4 h-4" />
+                  已保存
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* API SDK section */}
+          <div className="mt-8 pt-6 border-t border-slate-700/50">
+            <h3 className="font-medium text-white mb-2">公开 API SDK</h3>
+            <p className="text-sm text-slate-400 mb-4">
+              使用 REST API 将 FindableX 集成到任何系统中。完整的 API 文档请参阅"API 文档"标签页。
+            </p>
+            <div className="bg-slate-900 rounded-lg p-4 font-mono text-sm">
+              <div className="text-slate-500 mb-2"># 快速开始 - 使用 cURL</div>
+              <div className="text-green-400">
+                curl -H &quot;Authorization: Bearer YOUR_API_KEY&quot; \
+              </div>
+              <div className="text-green-400 pl-4">
+                https://findablex.com/api/v1/projects
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="bg-slate-900/60 rounded-lg p-3 border border-slate-700/40">
+                <div className="flex items-center gap-2 mb-1">
+                  <Code2 className="w-4 h-4 text-primary-400" />
+                  <span className="text-sm font-medium text-white">Python</span>
+                </div>
+                <pre className="text-xs text-slate-400 overflow-x-auto"><code>{`import requests
+resp = requests.get(
+  "https://findablex.com/api/v1/projects",
+  headers={"Authorization": f"Bearer {api_key}"}
+)`}</code></pre>
+              </div>
+              <div className="bg-slate-900/60 rounded-lg p-3 border border-slate-700/40">
+                <div className="flex items-center gap-2 mb-1">
+                  <Braces className="w-4 h-4 text-amber-400" />
+                  <span className="text-sm font-medium text-white">JavaScript</span>
+                </div>
+                <pre className="text-xs text-slate-400 overflow-x-auto"><code>{`const res = await fetch(
+  "https://findablex.com/api/v1/projects",
+  { headers: { Authorization: \`Bearer \${apiKey}\` } }
+);`}</code></pre>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

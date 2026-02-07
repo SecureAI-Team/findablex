@@ -3,6 +3,7 @@ import traceback
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
+import sentry_sdk
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -13,6 +14,25 @@ from app.api.v1 import router as api_v1_router
 from app.config import settings
 from app.core.rate_limiter import limiter
 from app.db.session import engine
+
+# ── Sentry error monitoring ───────────────────────────────────────────
+_sentry_dsn = settings.__dict__.get("sentry_dsn", "") or ""
+if not _sentry_dsn:
+    import os
+    _sentry_dsn = os.getenv("SENTRY_DSN", "")
+
+if _sentry_dsn:
+    sentry_sdk.init(
+        dsn=_sentry_dsn,
+        environment=settings.env,
+        traces_sample_rate=0.2 if settings.is_production else 1.0,
+        profiles_sample_rate=0.1 if settings.is_production else 0.0,
+        send_default_pii=False,
+        enable_tracing=True,
+    )
+    print(f"[Sentry] Initialized for env={settings.env}")
+else:
+    print("[Sentry] No DSN configured, error monitoring disabled")
 
 
 @asynccontextmanager
@@ -88,6 +108,10 @@ def create_application() -> FastAPI:
     
     # Include routers
     app.include_router(api_v1_router, prefix="/api/v1")
+    
+    # WebSocket routes (registered at app level, not under /api/v1)
+    from app.api.v1.ws import router as ws_router
+    app.include_router(ws_router, tags=["WebSocket"])
     
     return app
 

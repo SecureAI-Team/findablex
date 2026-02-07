@@ -60,14 +60,15 @@ export default function ExtensionBanner() {
 
           {/* Actions */}
           <div className="flex items-center gap-2 flex-shrink-0">
-            <Link
-              href="/extension"
+            <a
+              href="/downloads/findablex-chrome.zip"
+              download
               className="inline-flex items-center gap-1.5 bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all shadow-sm"
             >
               <Download className="w-4 h-4" />
               <span className="hidden sm:inline">下载插件</span>
               <span className="sm:hidden">下载</span>
-            </Link>
+            </a>
             <button
               onClick={dismiss}
               className="text-slate-500 hover:text-slate-300 p-1.5 rounded-lg hover:bg-slate-700/50 transition-colors"

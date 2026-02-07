@@ -117,14 +117,16 @@ export default function ExtensionPage() {
             {/* Download buttons */}
             <div className="flex flex-wrap justify-center gap-4 mb-8">
               <a
-                href="#"
+                href="/downloads/findablex-chrome.zip"
+                download
                 className="inline-flex items-center gap-3 bg-primary-500 hover:bg-primary-600 text-white px-8 py-4 rounded-xl font-medium text-lg transition-all shadow-lg shadow-primary-500/25 hover:shadow-primary-500/40"
               >
                 <Chrome className="w-6 h-6" />
                 Chrome / Edge 下载
               </a>
               <a
-                href="#"
+                href="/downloads/findablex-firefox.zip"
+                download
                 className="inline-flex items-center gap-3 border border-slate-600 hover:border-slate-500 text-slate-300 hover:text-white px-8 py-4 rounded-xl font-medium text-lg transition-all"
               >
                 <Globe className="w-6 h-6" />
@@ -248,7 +250,8 @@ export default function ExtensionPage() {
             </p>
             <div className="flex flex-wrap justify-center gap-4">
               <a
-                href="#"
+                href="/downloads/findablex-chrome.zip"
+                download
                 className="inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white px-8 py-4 rounded-xl font-medium text-lg transition-all shadow-lg shadow-primary-500/25"
               >
                 <Download className="w-5 h-5" />

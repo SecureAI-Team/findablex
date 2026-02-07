@@ -644,18 +644,19 @@ export default function HomePage() {
                   </ul>
 
                   <div className="flex flex-wrap gap-3">
-                    <Link
-                      href="/extension"
+                    <a
+                      href="/downloads/findablex-chrome.zip"
+                      download
                       className="inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white px-6 py-3 rounded-xl font-medium transition-all shadow-lg shadow-primary-500/25 hover:shadow-primary-500/40"
                     >
                       <Download className="w-5 h-5" />
                       免费下载插件
-                    </Link>
+                    </a>
                     <Link
-                      href="/login"
+                      href="/extension"
                       className="inline-flex items-center gap-2 border border-slate-600 hover:border-slate-500 text-slate-300 hover:text-white px-6 py-3 rounded-xl font-medium transition-all"
                     >
-                      登录后安装
+                      查看详情
                       <ArrowRight className="w-4 h-4" />
                     </Link>
                   </div>

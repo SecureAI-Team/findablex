@@ -13,6 +13,7 @@ import {
   Globe,
 } from 'lucide-react';
 import { Header, Footer, PageViewTracker } from '@/components';
+import InstallGuide from '@/components/InstallGuide';
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -54,26 +55,49 @@ const features = [
   },
 ];
 
-const steps = [
+const chromeSteps = [
   {
     step: '1',
-    title: '下载安装插件',
-    description: '点击下方按钮下载，将插件安装到您的浏览器中。',
+    title: '下载并解压插件',
+    description: '点击上方"Chrome / Edge 下载"按钮，下载 zip 文件后解压到一个文件夹（如桌面上的 findablex-extension）。',
   },
   {
     step: '2',
-    title: '登录 FindableX 账号',
-    description: '在插件弹窗中使用您的 FindableX 账号登录，插件会自动开启采集模式。',
+    title: '打开扩展管理页面',
+    description: '在 Chrome 地址栏输入 chrome://extensions 并回车（Edge 输入 edge://extensions）。打开右上角的"开发者模式"开关。',
   },
   {
     step: '3',
-    title: '自动采集数据',
-    description: '插件在后台自动访问各 AI 引擎，执行查询任务并提取结果，全程无需您操作。',
+    title: '加载插件',
+    description: '点击"加载已解压的扩展程序"按钮，选择刚才解压的文件夹，插件会立即安装到浏览器中。',
   },
   {
     step: '4',
-    title: '查看分析报告',
-    description: '采集的数据自动同步到 FindableX 平台，您可以在仪表板中查看完整的分析报告。',
+    title: '登录并自动运行',
+    description: '点击浏览器右上角的插件图标，使用 FindableX 账号登录。登录后插件自动开始采集数据。',
+  },
+];
+
+const firefoxSteps = [
+  {
+    step: '1',
+    title: '下载 Firefox 版本',
+    description: '点击上方"Firefox 下载"按钮下载 zip 文件并解压。',
+  },
+  {
+    step: '2',
+    title: '打开调试页面',
+    description: '在 Firefox 地址栏输入 about:debugging#/runtime/this-firefox 并回车。',
+  },
+  {
+    step: '3',
+    title: '临时加载插件',
+    description: '点击"临时载入附加组件"，选择解压文件夹中的 manifest.json 文件。',
+  },
+  {
+    step: '4',
+    title: '登录并使用',
+    description: '点击浏览器工具栏中的 FindableX 图标，登录后自动开始采集。',
   },
 ];
 
@@ -134,13 +158,18 @@ export default function ExtensionPage() {
               </a>
             </div>
 
-            <p className="text-sm text-slate-500">
-              没有 FindableX 账号？
-              <Link href="/register" className="text-primary-400 hover:text-primary-300 ml-1">
-                免费注册
-              </Link>
-              {' '}后即可使用插件
-            </p>
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-sm text-slate-500">
+                没有 FindableX 账号？
+                <Link href="/register" className="text-primary-400 hover:text-primary-300 ml-1">
+                  免费注册
+                </Link>
+                {' '}后即可使用插件
+              </p>
+              <p className="text-xs text-slate-600">
+                即将上架 Chrome Web Store 和 Firefox Add-ons，届时支持一键安装
+              </p>
+            </div>
           </div>
         </section>
 
@@ -177,33 +206,8 @@ export default function ExtensionPage() {
           </div>
         </section>
 
-        {/* How It Works */}
-        <section className="py-20 lg:py-32">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-16">
-              <h2 className="font-display text-3xl lg:text-4xl font-bold text-white mb-4">
-                四步开始使用
-              </h2>
-            </div>
-
-            <div className="space-y-8">
-              {steps.map((item, index) => (
-                <div key={item.step} className="flex gap-6 items-start">
-                  <div className="flex-shrink-0 w-12 h-12 bg-primary-500/20 rounded-full flex items-center justify-center border border-primary-500/30">
-                    <span className="text-primary-400 font-bold text-lg">{item.step}</span>
-                  </div>
-                  <div className="pt-1">
-                    <h3 className="text-white font-semibold text-lg mb-1">{item.title}</h3>
-                    <p className="text-slate-400">{item.description}</p>
-                  </div>
-                  {index < steps.length - 1 && (
-                    <div className="hidden" />
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+        {/* Installation Guide */}
+        <InstallGuide chromeSteps={chromeSteps} firefoxSteps={firefoxSteps} />
 
         {/* Supported Engines */}
         <section className="py-20 lg:py-32 bg-slate-800/30">

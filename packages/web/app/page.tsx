@@ -23,6 +23,11 @@ import {
   Calendar,
   Clock,
   Quote,
+  Chrome,
+  Puzzle,
+  Download,
+  MonitorSmartphone,
+  Sparkles,
 } from 'lucide-react';
 import { Header, Footer, FeatureCard, StepCard, PricingCard, FAQAccordion, PageViewTracker } from '@/components';
 import { generateFAQSchema, generateSoftwareAppSchema, generateServiceSchema, generateBreadcrumbSchema, JsonLd } from '@/lib/seo';
@@ -589,6 +594,128 @@ export default function HomePage() {
                   <div>
                     <div className="text-white font-medium">普林斯顿大学 GEO 研究团队</div>
                     <div className="text-sm text-slate-500">GEO: Generative Engine Optimization (2024)</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Browser Extension Promo Section */}
+        <section id="extension" className="py-20 lg:py-32">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary-600/20 via-slate-800 to-accent-600/20 border border-primary-500/20">
+              {/* Background decorations */}
+              <div className="absolute top-0 right-0 w-80 h-80 bg-primary-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
+              <div className="absolute bottom-0 left-0 w-64 h-64 bg-accent-500/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/3" />
+
+              <div className="relative grid lg:grid-cols-2 gap-12 p-8 sm:p-12 lg:p-16 items-center">
+                {/* Left: Text content */}
+                <div>
+                  <div className="inline-flex items-center gap-2 bg-primary-500/10 border border-primary-500/20 rounded-full px-4 py-1.5 mb-6">
+                    <Puzzle className="w-4 h-4 text-primary-400" />
+                    <span className="text-primary-400 text-sm font-medium">
+                      浏览器插件
+                    </span>
+                  </div>
+
+                  <h2 className="font-display text-3xl lg:text-4xl font-bold text-white mb-4">
+                    安装插件，一键自动采集
+                  </h2>
+
+                  <p className="text-slate-300 text-lg mb-6 leading-relaxed">
+                    安装 FindableX 浏览器插件后，系统会在后台自动从 ChatGPT、Perplexity、通义千问等 9 大 AI 引擎采集数据 —— 无需手动操作，全程无感知。
+                  </p>
+
+                  <ul className="space-y-3 mb-8">
+                    {[
+                      { icon: Sparkles, text: '登录即开启，全自动后台运行' },
+                      { icon: MonitorSmartphone, text: '支持 Chrome、Edge、Firefox 多浏览器' },
+                      { icon: Shield, text: '数据通过您自己的浏览器采集，安全可控' },
+                      { icon: Zap, text: '智能防检测：自动处理验证码和限速' },
+                    ].map((item) => (
+                      <li key={item.text} className="flex items-center gap-3 text-slate-300">
+                        <div className="flex-shrink-0 w-8 h-8 bg-primary-500/10 rounded-lg flex items-center justify-center">
+                          <item.icon className="w-4 h-4 text-primary-400" />
+                        </div>
+                        {item.text}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <div className="flex flex-wrap gap-3">
+                    <Link
+                      href="/extension"
+                      className="inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white px-6 py-3 rounded-xl font-medium transition-all shadow-lg shadow-primary-500/25 hover:shadow-primary-500/40"
+                    >
+                      <Download className="w-5 h-5" />
+                      免费下载插件
+                    </Link>
+                    <Link
+                      href="/login"
+                      className="inline-flex items-center gap-2 border border-slate-600 hover:border-slate-500 text-slate-300 hover:text-white px-6 py-3 rounded-xl font-medium transition-all"
+                    >
+                      登录后安装
+                      <ArrowRight className="w-4 h-4" />
+                    </Link>
+                  </div>
+                </div>
+
+                {/* Right: Visual mockup */}
+                <div className="relative flex justify-center">
+                  <div className="w-full max-w-sm">
+                    {/* Browser extension popup mockup */}
+                    <div className="bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl overflow-hidden">
+                      {/* Chrome bar mockup */}
+                      <div className="bg-slate-800 px-4 py-2 flex items-center gap-2 border-b border-slate-700">
+                        <div className="flex gap-1.5">
+                          <div className="w-3 h-3 rounded-full bg-red-500/60" />
+                          <div className="w-3 h-3 rounded-full bg-yellow-500/60" />
+                          <div className="w-3 h-3 rounded-full bg-green-500/60" />
+                        </div>
+                        <div className="flex-1 bg-slate-700 rounded-md px-3 py-1 text-xs text-slate-400 ml-2">
+                          chat.deepseek.com
+                        </div>
+                        <div className="w-6 h-6 bg-primary-500/20 rounded flex items-center justify-center">
+                          <Puzzle className="w-3.5 h-3.5 text-primary-400" />
+                        </div>
+                      </div>
+
+                      {/* Extension popup mockup */}
+                      <div className="p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">🔍</span>
+                            <span className="text-sm font-semibold text-primary-400">FindableX</span>
+                          </div>
+                          <div className="w-10 h-5 bg-green-500 rounded-full relative">
+                            <div className="absolute right-0.5 top-0.5 w-4 h-4 bg-white rounded-full" />
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-800 rounded-lg p-3 mb-3 flex items-center justify-between">
+                          <span className="text-xs text-slate-300">Hi, 张三</span>
+                          <span className="text-xs text-slate-400">今日: 12 完成, 0 失败</span>
+                        </div>
+
+                        <div className="flex justify-center gap-2 py-2">
+                          {['🔮', '🌙', '☁️', '🤖', '🔍', '🫘', '🧠', '🌐', '💠'].map((emoji, i) => (
+                            <div key={i} className="flex flex-col items-center gap-1">
+                              <span className="text-sm">{emoji}</span>
+                              <div className={`w-1.5 h-1.5 rounded-full ${i < 5 ? 'bg-green-400' : 'bg-slate-600'}`} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Floating badges */}
+                    <div className="absolute -top-4 -right-4 bg-green-500/20 text-green-400 border border-green-500/30 rounded-full px-3 py-1 text-xs font-medium backdrop-blur-sm">
+                      ✓ 自动运行中
+                    </div>
+                    <div className="absolute -bottom-3 -left-3 bg-primary-500/20 text-primary-400 border border-primary-500/30 rounded-full px-3 py-1 text-xs font-medium backdrop-blur-sm">
+                      9 个引擎已连接
+                    </div>
                   </div>
                 </div>
               </div>

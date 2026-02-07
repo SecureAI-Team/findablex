@@ -6,7 +6,7 @@ import { useState, Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Eye, EyeOff, Loader2, Mail, Lock, ArrowLeft } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Mail, Lock, ArrowLeft, Puzzle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { analytics } from '@/lib/analytics';
 
@@ -246,6 +246,29 @@ function LoginForm() {
               )}
             </button>
           </form>
+
+          {/* Extension Download Tip */}
+          <div className="mt-6 p-4 bg-primary-500/5 border border-primary-500/20 rounded-lg">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-8 h-8 bg-primary-500/10 rounded-lg flex items-center justify-center mt-0.5">
+                <Puzzle className="w-4 h-4 text-primary-400" />
+              </div>
+              <div>
+                <p className="text-sm text-slate-300 font-medium">
+                  推荐安装浏览器插件
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  安装 FindableX 插件后，可自动从 9 大 AI 引擎采集数据
+                </p>
+                <Link
+                  href="/extension"
+                  className="inline-flex items-center gap-1 text-xs text-primary-400 hover:text-primary-300 mt-1.5 transition-colors"
+                >
+                  了解详情 →
+                </Link>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* ICP - Fixed at bottom */}

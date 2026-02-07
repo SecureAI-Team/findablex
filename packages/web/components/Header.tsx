@@ -9,9 +9,9 @@ import { cn } from '@/lib/utils';
 const navLinks = [
   { href: '/#features', label: '功能' },
   { href: '/#how-it-works', label: '工作原理' },
+  { href: '/extension', label: '浏览器插件' },
   { href: '/articles', label: '资讯' },
   { href: '/pricing', label: '定价' },
-  { href: '/faq', label: 'FAQ' },
 ];
 
 export function Header() {

@@ -23,6 +23,7 @@ import { api, logout } from '@/lib/api';
 import { clsx } from 'clsx';
 import { analytics } from '@/lib/analytics';
 import NotificationBell from '@/components/NotificationBell';
+import ExtensionBanner from '@/components/ExtensionBanner';
 
 const navigation = [
   { name: '概览', href: '/dashboard', icon: Home },
@@ -287,6 +288,7 @@ export default function DashboardLayout({
 
         {/* Page content */}
         <main className="p-4 sm:p-6 lg:p-8 min-h-[calc(100vh-4rem-3rem)]">
+          <ExtensionBanner />
           {children}
         </main>
 

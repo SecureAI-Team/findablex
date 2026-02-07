@@ -25,6 +25,8 @@ import {
   Eye,
   Target,
   RotateCcw,
+  AlertTriangle,
+  TrendingUp,
 } from 'lucide-react';
 import { analytics } from '@/lib/analytics';
 import { api } from '@/lib/api';
@@ -32,6 +34,9 @@ import { cn } from '@/lib/utils';
 import CrawlResultsTab from '@/components/project/CrawlResultsTab';
 import CitationsSummary from '@/components/project/CitationsSummary';
 import EditProjectDialog from '@/components/project/EditProjectDialog';
+import ProjectTrends from '@/components/project/ProjectTrends';
+import CommentThread from '@/components/project/CommentThread';
+import ActivityFeed from '@/components/project/ActivityFeed';
 import QueryManager from '@/components/project/QueryManager';
 import QuickCreateTaskDialog from '@/components/project/QuickCreateTaskDialog';
 
@@ -129,11 +134,16 @@ export default function ProjectDetailPage() {
   const [queries, setQueries] = useState<QueryItem[]>([]);
   const [visibilityScore, setVisibilityScore] = useState<number | null>(null);
   const [targetDomainCitations, setTargetDomainCitations] = useState<number>(0);
+  const [driftSummary, setDriftSummary] = useState<{
+    total: number; critical: number; warning: number; unacknowledged: number;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showCreateTaskDialog, setShowCreateTaskDialog] = useState(false);
+  const [isAutoChecking, setIsAutoChecking] = useState(false);
+  const [autoCheckupResult, setAutoCheckupResult] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<TabId>(
     (searchParams.get('tab') as TabId) || 'overview'
   );
@@ -180,6 +190,14 @@ export default function ProjectDetailPage() {
         } catch (citationsError) {
           console.error('Failed to fetch citations summary:', citationsError);
         }
+
+        // Fetch drift events summary
+        try {
+          const driftRes = await api.get(`/projects/${projectId}/drift-events/summary`);
+          setDriftSummary(driftRes.data);
+        } catch (driftError) {
+          console.error('Failed to fetch drift summary:', driftError);
+        }
       } catch (error: any) {
         console.error('Failed to fetch project:', error);
         // Only redirect if project not found (404) or forbidden (403)
@@ -214,6 +232,27 @@ export default function ProjectDetailPage() {
       analytics.trackRetestTriggered(projectId);
     } catch (error) {
       console.error('Failed to trigger retest:', error);
+    }
+  };
+
+  const handleAutoCheckup = async () => {
+    setIsAutoChecking(true);
+    setAutoCheckupResult(null);
+    try {
+      const res = await api.post(`/projects/${projectId}/auto-checkup`, {
+        max_engines: 3,
+      });
+      setAutoCheckupResult(res.data);
+      // Refresh crawl tasks
+      const crawlTasksRes = await api.get(`/projects/${projectId}/crawl-tasks`);
+      setCrawlTasks(crawlTasksRes.data);
+      // Switch to runs tab to show progress
+      handleTabChange('runs');
+    } catch (err: any) {
+      const detail = err.response?.data?.detail || '自动体检失败';
+      alert(detail);
+    } finally {
+      setIsAutoChecking(false);
     }
   };
 
@@ -312,6 +351,19 @@ export default function ProjectDetailPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleAutoCheckup}
+            disabled={isAutoChecking || queries.length === 0}
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-primary-500 to-accent-500 hover:from-primary-600 hover:to-accent-600 disabled:from-primary-500/50 disabled:to-accent-500/50 text-white px-4 py-2.5 rounded-lg font-medium transition-all shadow-lg shadow-primary-500/20"
+            title={queries.length === 0 ? '请先添加查询词' : '自动选择引擎，一键完成体检'}
+          >
+            {isAutoChecking ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <Play className="w-5 h-5" />
+            )}
+            {isAutoChecking ? '体检中...' : '一键体检'}
+          </button>
           <Link
             href={`/reports/research/${projectId}`}
             className="inline-flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2.5 rounded-lg font-medium transition-all"
@@ -398,11 +450,58 @@ export default function ProjectDetailPage() {
         </nav>
       </div>
 
+      {/* Auto Checkup Result Toast */}
+      {autoCheckupResult && (
+        <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 flex items-start gap-3">
+          <CheckCircle className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-green-300 font-medium">{autoCheckupResult.message}</p>
+            <p className="text-green-400/70 text-sm mt-1">
+              预计完成时间约 {autoCheckupResult.estimated_time_minutes} 分钟，
+              使用引擎: {autoCheckupResult.engines_used?.join(', ')}
+            </p>
+          </div>
+          <button
+            onClick={() => setAutoCheckupResult(null)}
+            className="text-green-400/50 hover:text-green-400 transition-colors"
+          >
+            <XCircle className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Tab Content */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
+          {/* Drift Alert Banner */}
+          {driftSummary && driftSummary.unacknowledged > 0 && (
+            <div className={cn(
+              'rounded-xl border p-4 flex items-start gap-3',
+              driftSummary.critical > 0
+                ? 'bg-red-500/10 border-red-500/30'
+                : 'bg-amber-500/10 border-amber-500/30'
+            )}>
+              <AlertTriangle className={cn(
+                'w-5 h-5 mt-0.5 flex-shrink-0',
+                driftSummary.critical > 0 ? 'text-red-400' : 'text-amber-400'
+              )} />
+              <div className="flex-1">
+                <p className={cn(
+                  'font-medium',
+                  driftSummary.critical > 0 ? 'text-red-300' : 'text-amber-300'
+                )}>
+                  检测到 {driftSummary.unacknowledged} 个未确认的变化
+                  {driftSummary.critical > 0 && ` (${driftSummary.critical} 个严重)`}
+                </p>
+                <p className="text-sm mt-1 text-slate-400">
+                  您的品牌在 AI 引擎中的表现发生了变化，请及时关注
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
             <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 text-sm">品牌可见性</span>
@@ -434,6 +533,18 @@ export default function ProjectDetailPage() {
               </div>
               <div className="text-3xl font-bold text-white mt-2">{queries.length}</div>
             </div>
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400 text-sm">变化检测</span>
+                <TrendingUp className="w-5 h-5 text-amber-400" />
+              </div>
+              <div className="text-3xl font-bold text-white mt-2">
+                {driftSummary?.total ?? '--'}
+              </div>
+              {driftSummary && driftSummary.unacknowledged > 0 && (
+                <div className="text-xs text-amber-400 mt-1">{driftSummary.unacknowledged} 个待确认</div>
+              )}
+            </div>
             {project.target_domains && project.target_domains.length > 0 && (
               <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
                 <div className="flex items-center justify-between">
@@ -447,6 +558,9 @@ export default function ProjectDetailPage() {
 
           {/* Citations Summary */}
           <CitationsSummary projectId={projectId} />
+
+          {/* Trends & Engine Analysis */}
+          <ProjectTrends projectId={projectId} />
 
           {/* Recent Research Tasks */}
           {crawlTasks.length > 0 && (
@@ -531,6 +645,12 @@ export default function ProjectDetailPage() {
               </div>
             </div>
           )}
+
+          {/* Activity Feed & Comments */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ActivityFeed projectId={projectId} />
+            <CommentThread projectId={projectId} />
+          </div>
         </div>
       )}
 

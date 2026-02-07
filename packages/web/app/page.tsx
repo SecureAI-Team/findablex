@@ -614,13 +614,13 @@ export default function HomePage() {
               </p>
             </div>
 
+            {/* First row: 3 articles */}
             <div className="grid md:grid-cols-3 gap-8">
-              {getFeaturedArticles().map((article) => (
+              {getFeaturedArticles().slice(0, 3).map((article) => (
                 <article
                   key={article.slug}
                   className="bg-slate-800/50 rounded-2xl border border-slate-700/50 overflow-hidden hover:border-primary-500/50 transition-all group"
                 >
-                  {/* Article Image */}
                   <div className="h-48 relative overflow-hidden">
                     <Image
                       src={article.image}
@@ -630,32 +630,26 @@ export default function HomePage() {
                       sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent" />
-                    {article.featured && (
-                      <span className="absolute top-4 right-4 text-xs font-medium text-amber-400 bg-amber-500/20 backdrop-blur px-2 py-1 rounded">
-                        精选
-                      </span>
-                    )}
+                    <span className="absolute top-4 right-4 text-xs font-medium text-amber-400 bg-amber-500/20 backdrop-blur px-2 py-1 rounded">
+                      精选
+                    </span>
                   </div>
 
                   <div className="p-6">
-                    {/* Category */}
                     <span className="text-xs font-medium text-primary-400 bg-primary-500/10 px-2 py-1 rounded">
                       {article.category}
                     </span>
 
-                    {/* Title */}
                     <h3 className="font-display text-lg font-semibold text-white mt-3 mb-3 group-hover:text-primary-400 transition-colors line-clamp-2">
                       <Link href={`/articles/${article.slug}`}>
                         {article.title}
                       </Link>
                     </h3>
 
-                    {/* Excerpt */}
                     <p className="text-slate-400 text-sm mb-4 line-clamp-2">
                       {article.excerpt}
                     </p>
 
-                    {/* Meta */}
                     <div className="flex items-center gap-4 text-xs text-slate-500 mb-4">
                       <span className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
@@ -667,7 +661,6 @@ export default function HomePage() {
                       </span>
                     </div>
 
-                    {/* Read More */}
                     <Link
                       href={`/articles/${article.slug}`}
                       className="inline-flex items-center gap-1 text-sm text-primary-400 hover:text-primary-300 transition-colors group/link"
@@ -679,6 +672,69 @@ export default function HomePage() {
                 </article>
               ))}
             </div>
+
+            {/* Second row: 2 new articles (wider cards) */}
+            {getFeaturedArticles().length > 3 && (
+              <div className="grid md:grid-cols-2 gap-8 mt-8">
+                {getFeaturedArticles().slice(3).map((article) => (
+                  <article
+                    key={article.slug}
+                    className="bg-slate-800/50 rounded-2xl border border-slate-700/50 overflow-hidden hover:border-primary-500/50 transition-all group md:flex"
+                  >
+                    {/* Side Image (horizontal layout on desktop) */}
+                    <div className="md:w-2/5 h-48 md:h-auto relative overflow-hidden flex-shrink-0">
+                      <Image
+                        src={article.image}
+                        alt={article.title}
+                        fill
+                        className="object-cover group-hover:scale-105 transition-transform duration-300"
+                        sizes="(max-width: 768px) 100vw, 40vw"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent to-slate-900/30 hidden md:block" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent md:hidden" />
+                      <span className="absolute top-4 left-4 text-xs font-medium text-emerald-400 bg-emerald-500/20 backdrop-blur px-2 py-1 rounded">
+                        新发布
+                      </span>
+                    </div>
+
+                    <div className="p-6 flex flex-col justify-center">
+                      <span className="text-xs font-medium text-primary-400 bg-primary-500/10 px-2 py-1 rounded w-fit">
+                        {article.category}
+                      </span>
+
+                      <h3 className="font-display text-lg font-semibold text-white mt-3 mb-3 group-hover:text-primary-400 transition-colors line-clamp-2">
+                        <Link href={`/articles/${article.slug}`}>
+                          {article.title}
+                        </Link>
+                      </h3>
+
+                      <p className="text-slate-400 text-sm mb-4 line-clamp-3">
+                        {article.excerpt}
+                      </p>
+
+                      <div className="flex items-center gap-4 text-xs text-slate-500 mb-4">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {new Date(article.publishedAt).toLocaleDateString('zh-CN')}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {article.readingTime} 分钟
+                        </span>
+                      </div>
+
+                      <Link
+                        href={`/articles/${article.slug}`}
+                        className="inline-flex items-center gap-1 text-sm text-primary-400 hover:text-primary-300 transition-colors group/link"
+                      >
+                        阅读全文
+                        <ArrowRight className="w-4 h-4 group-hover/link:translate-x-1 transition-transform" />
+                      </Link>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
 
             {/* View All Link */}
             <div className="text-center mt-12">

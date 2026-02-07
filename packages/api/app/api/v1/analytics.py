@@ -186,6 +186,31 @@ async def get_event_counts(
     }
 
 
+@router.get("/business")
+async def get_business_metrics(
+    days: int = 30,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Get comprehensive business health metrics.
+    
+    Admin only endpoint. Includes:
+    - Revenue: MRR, paid users, ARPU
+    - Retention: D1/D7/D30 rates
+    - Feature usage rates
+    - Growth metrics
+    - User segmentation
+    """
+    if not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Admin only")
+    
+    analytics = AnalyticsService(db)
+    metrics = await analytics.get_business_metrics(days=days)
+    
+    return metrics
+
+
 @router.post("/bot-visit")
 async def track_bot_visit(
     data: BotVisitRequest,

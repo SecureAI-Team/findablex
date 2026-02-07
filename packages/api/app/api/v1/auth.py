@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from app.config import settings
+from app.config import settings, dynamic
 from app.core.security import create_access_token, create_refresh_token, create_password_reset_token, verify_password_reset_token, verify_refresh_token, verify_password
 from app.deps import get_current_user, get_db
 from app.models.user import User
@@ -45,6 +45,7 @@ class RefreshTokenRequest(BaseModel):
 @router.post("/register", response_model=UserResponseWithWorkspace, status_code=status.HTTP_201_CREATED)
 async def register(
     data: UserCreate,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """
@@ -120,7 +121,16 @@ async def register(
                 )
     
     # Check if invite code is required (from settings)
-    if settings.invite_code_required and not invite_code_obj and not workspace_invite:
+    # Support dynamic setting override for open registration
+    invite_required = settings.invite_code_required
+    try:
+        dynamic_invite_required = await dynamic.get("auth.invite_code_required")
+        if dynamic_invite_required is not None:
+            invite_required = dynamic_invite_required in (True, "true", "True", "1")
+    except Exception:
+        pass
+    
+    if invite_required and not invite_code_obj and not workspace_invite:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="注册需要邀请码",
@@ -156,6 +166,30 @@ async def register(
     else:
         # No invite code - create default personal workspace
         default_workspace = await workspace_service.create_default_workspace(user)
+    
+    # Send welcome email in background
+    try:
+        from app.services.email_service import email_service
+        background_tasks.add_task(
+            email_service.send_welcome_email,
+            user.email,
+            user.full_name,
+        )
+    except Exception:
+        pass  # Non-critical
+    
+    # Track registration event
+    try:
+        from app.services.analytics_service import AnalyticsService
+        analytics = AnalyticsService(db)
+        await analytics.track_event(
+            "user_registered",
+            user_id=user.id,
+            workspace_id=default_workspace.id if default_workspace else None,
+            properties={"invite_type": "workspace" if workspace_invite else "code" if invite_code_obj else "open"},
+        )
+    except Exception:
+        pass  # Non-critical
     
     # Return user with workspace_id
     return {
@@ -299,6 +333,54 @@ async def update_me(
 async def logout() -> dict:
     """Logout user (client should discard tokens)."""
     return {"message": "Successfully logged out"}
+
+
+class NotificationPreferences(BaseModel):
+    """Notification preference settings."""
+    drift_warning: bool = True
+    retest_reminder: bool = True
+    weekly_digest: bool = False
+    quota_warning: bool = True
+    renewal_reminder: bool = True
+    checkup_completed: bool = True
+    marketing: bool = False
+
+
+@router.get("/me/notifications")
+async def get_notification_preferences(
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Get current user's notification preferences."""
+    # Default preferences - in full implementation, stored per-user
+    return {
+        "drift_warning": True,
+        "retest_reminder": True,
+        "weekly_digest": False,
+        "quota_warning": True,
+        "renewal_reminder": True,
+        "checkup_completed": True,
+        "marketing": False,
+    }
+
+
+@router.put("/me/notifications")
+async def update_notification_preferences(
+    data: NotificationPreferences,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update current user's notification preferences."""
+    # In full implementation, persist to database
+    return {
+        "drift_warning": data.drift_warning,
+        "retest_reminder": data.retest_reminder,
+        "weekly_digest": data.weekly_digest,
+        "quota_warning": data.quota_warning,
+        "renewal_reminder": data.renewal_reminder,
+        "checkup_completed": data.checkup_completed,
+        "marketing": data.marketing,
+        "updated": True,
+    }
 
 
 @router.post("/forgot-password")

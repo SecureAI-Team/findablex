@@ -213,6 +213,14 @@ class CrawlResult(Base):
         nullable=True,
     )
     
+    # Source tracking
+    source: Mapped[Optional[str]] = mapped_column(
+        String(30),
+        nullable=True,
+        default="server",
+        comment="Result source: server, agent, browser_extension",
+    )
+    
     crawled_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

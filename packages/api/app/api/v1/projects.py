@@ -1,10 +1,11 @@
 """Project routes."""
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import select, func
+from sqlalchemy import select, func, and_, desc, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import get_current_user, get_db
@@ -1111,3 +1112,245 @@ async def export_project_crawl_results(
                 "Content-Disposition": f"attachment; filename=project_{project_id}_results.json"
             }
         )
+
+
+# ========== Project Trends & Dashboard Data ==========
+
+class TrendDataPoint(BaseModel):
+    """Single data point for trend chart."""
+    date: str
+    engine: str
+    visibility_score: float
+    citations_count: int
+    queries_total: int
+
+
+class EngineSummary(BaseModel):
+    """Per-engine summary for radar chart."""
+    engine: str
+    engine_label: str
+    visibility_score: float
+    citation_rate: float
+    avg_response_time: Optional[float] = None
+    total_citations: int
+    total_queries: int
+
+
+class ProjectTrendsResponse(BaseModel):
+    """Response for project trends data."""
+    trend_data: List[Dict[str, Any]]
+    engine_summaries: List[EngineSummary]
+    health_history: List[Dict[str, Any]]
+    summary: Dict[str, Any]
+
+
+ENGINE_LABELS = {
+    "deepseek": "DeepSeek",
+    "kimi": "Kimi",
+    "doubao": "豆包",
+    "chatglm": "ChatGLM",
+    "chatgpt": "ChatGPT",
+    "qwen": "通义千问",
+    "perplexity": "Perplexity",
+    "google_sge": "Google SGE",
+    "bing_copilot": "Bing Copilot",
+}
+
+
+@router.get("/{project_id}/trends", response_model=ProjectTrendsResponse)
+async def get_project_trends(
+    project_id: UUID,
+    days: int = Query(30, ge=7, le=90),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ProjectTrendsResponse:
+    """
+    Get project trend data for dashboard charts.
+    
+    Returns:
+    - trend_data: Time-series data for line chart (visibility per engine over time)
+    - engine_summaries: Per-engine metrics for radar chart
+    - health_history: Health score history from runs
+    - summary: Overall metrics summary
+    """
+    project_service = ProjectService(db)
+    workspace_service = WorkspaceService(db)
+    
+    project = await project_service.get_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    membership = await workspace_service.get_membership(project.workspace_id, current_user.id)
+    if not membership and not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Not a member of this workspace")
+    
+    target_domains = project.target_domains or []
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    
+    # Get all query IDs for this project
+    query_result = await db.execute(
+        select(QueryItem.id).where(QueryItem.project_id == project_id)
+    )
+    query_ids = [row[0] for row in query_result]
+    
+    # 1. Health history from crawl tasks (completed ones)
+    health_history = []
+    tasks_result = await db.execute(
+        select(CrawlTask)
+        .where(
+            and_(
+                CrawlTask.project_id == project_id,
+                CrawlTask.status == "completed",
+                CrawlTask.completed_at >= cutoff,
+            )
+        )
+        .order_by(CrawlTask.completed_at)
+    )
+    tasks = tasks_result.scalars().all()
+    
+    for task in tasks:
+        if task.total_queries > 0:
+            success_rate = (task.successful_queries / task.total_queries) * 100
+            health_history.append({
+                "date": task.completed_at.strftime("%m-%d"),
+                "datetime": task.completed_at.isoformat(),
+                "engine": task.engine,
+                "engine_label": ENGINE_LABELS.get(task.engine, task.engine),
+                "success_rate": round(success_rate, 1),
+                "successful": task.successful_queries,
+                "total": task.total_queries,
+            })
+    
+    # 2. Per-engine visibility (from crawl results)
+    engine_summaries = []
+    trend_data = []
+    
+    if query_ids:
+        # Get per-engine stats
+        engine_stats_query = (
+            select(
+                CrawlResult.engine,
+                func.count(CrawlResult.id).label("total_results"),
+                func.sum(case((CrawlResult.has_citations == True, 1), else_=0)).label("with_citations"),
+                func.avg(CrawlResult.response_time_ms).label("avg_response_time"),
+            )
+            .where(
+                and_(
+                    CrawlResult.query_item_id.in_(query_ids),
+                    CrawlResult.crawled_at >= cutoff,
+                )
+            )
+            .group_by(CrawlResult.engine)
+        )
+        engine_stats_result = await db.execute(engine_stats_query)
+        engine_stats = engine_stats_result.all()
+        
+        for row in engine_stats:
+            engine = row[0]
+            total = row[1] or 0
+            with_citations_count = row[2] or 0
+            avg_rt = float(row[3]) if row[3] else None
+            
+            # Count target domain citations for this engine
+            target_citation_count = 0
+            if target_domains:
+                citations_result = await db.execute(
+                    select(CrawlResult.citations)
+                    .where(
+                        and_(
+                            CrawlResult.query_item_id.in_(query_ids),
+                            CrawlResult.engine == engine,
+                            CrawlResult.has_citations == True,
+                            CrawlResult.crawled_at >= cutoff,
+                        )
+                    )
+                )
+                for (citations,) in citations_result:
+                    if citations:
+                        for citation in citations:
+                            url = citation.get("url", "") if isinstance(citation, dict) else str(citation)
+                            for domain in target_domains:
+                                if domain in url:
+                                    target_citation_count += 1
+                                    break
+            
+            visibility = (target_citation_count / total * 100) if total > 0 else 0
+            citation_rate = (with_citations_count / total * 100) if total > 0 else 0
+            
+            engine_summaries.append(EngineSummary(
+                engine=engine,
+                engine_label=ENGINE_LABELS.get(engine, engine),
+                visibility_score=round(visibility, 1),
+                citation_rate=round(citation_rate, 1),
+                avg_response_time=round(avg_rt, 0) if avg_rt else None,
+                total_citations=target_citation_count,
+                total_queries=total,
+            ))
+        
+        # 3. Time-series trend data (group by date + engine)
+        # Get daily visibility by engine
+        for task in tasks:
+            if task.total_queries > 0 and task.completed_at:
+                date_str = task.completed_at.strftime("%m-%d")
+                
+                # Count target domain citations for this task
+                task_citations = 0
+                if target_domains:
+                    task_results = await db.execute(
+                        select(CrawlResult.citations)
+                        .where(
+                            and_(
+                                CrawlResult.query_item_id.in_(query_ids),
+                                CrawlResult.engine == task.engine,
+                                CrawlResult.has_citations == True,
+                            )
+                            # Use task's results - filter by task_id
+                        )
+                        .where(CrawlResult.task_id == task.id)
+                    )
+                    for (citations,) in task_results:
+                        if citations:
+                            for citation in citations:
+                                url = citation.get("url", "") if isinstance(citation, dict) else str(citation)
+                                for domain in target_domains:
+                                    if domain in url:
+                                        task_citations += 1
+                                        break
+                
+                visibility = (task_citations / task.total_queries * 100) if task.total_queries > 0 else 0
+                
+                trend_data.append({
+                    "date": date_str,
+                    "datetime": task.completed_at.isoformat(),
+                    "engine": task.engine,
+                    "engine_label": ENGINE_LABELS.get(task.engine, task.engine),
+                    "visibility": round(visibility, 1),
+                    "citations": task_citations,
+                    "queries": task.total_queries,
+                })
+    
+    # 4. Summary metrics
+    total_engines = len(engine_summaries)
+    avg_visibility = (
+        sum(e.visibility_score for e in engine_summaries) / total_engines
+        if total_engines > 0 else 0
+    )
+    total_citations = sum(e.total_citations for e in engine_summaries)
+    best_engine = max(engine_summaries, key=lambda e: e.visibility_score) if engine_summaries else None
+    
+    summary = {
+        "engines_tested": total_engines,
+        "avg_visibility": round(avg_visibility, 1),
+        "total_citations": total_citations,
+        "best_engine": best_engine.engine_label if best_engine else None,
+        "best_engine_score": best_engine.visibility_score if best_engine else 0,
+        "total_tasks": len(tasks),
+        "period_days": days,
+    }
+    
+    return ProjectTrendsResponse(
+        trend_data=trend_data,
+        engine_summaries=[s.model_dump() for s in engine_summaries],
+        health_history=health_history,
+        summary=summary,
+    )

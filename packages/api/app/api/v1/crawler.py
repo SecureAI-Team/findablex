@@ -840,3 +840,409 @@ async def submit_agent_result(
         "status": "ok",
         "message": "Result submitted successfully"
     }
+
+
+# =============================================================================
+# Browser Extension Endpoints (per-user JWT auth)
+# =============================================================================
+
+# Engine metadata for the browser extension (URLs, login requirements, selectors)
+EXTENSION_ENGINE_CONFIG = [
+    {
+        "id": "deepseek",
+        "name": "DeepSeek",
+        "url": "https://chat.deepseek.com/",
+        "new_chat_url": "https://chat.deepseek.com/",
+        "requires_login": True,
+        "supports_web_search": True,
+        "icon": "🔮",
+    },
+    {
+        "id": "kimi",
+        "name": "Kimi",
+        "url": "https://kimi.moonshot.cn/",
+        "new_chat_url": "https://kimi.moonshot.cn/",
+        "requires_login": True,
+        "supports_web_search": True,
+        "icon": "🌙",
+    },
+    {
+        "id": "qwen",
+        "name": "通义千问 (Qwen)",
+        "url": "https://tongyi.aliyun.com/qianwen/",
+        "new_chat_url": "https://tongyi.aliyun.com/qianwen/",
+        "requires_login": True,
+        "supports_web_search": True,
+        "icon": "☁️",
+    },
+    {
+        "id": "chatgpt",
+        "name": "ChatGPT",
+        "url": "https://chatgpt.com/",
+        "new_chat_url": "https://chatgpt.com/",
+        "requires_login": True,
+        "supports_web_search": True,
+        "icon": "🤖",
+    },
+    {
+        "id": "perplexity",
+        "name": "Perplexity",
+        "url": "https://www.perplexity.ai/",
+        "new_chat_url": "https://www.perplexity.ai/",
+        "requires_login": False,
+        "supports_web_search": True,
+        "icon": "🔍",
+    },
+    {
+        "id": "doubao",
+        "name": "豆包 (Doubao)",
+        "url": "https://www.doubao.com/chat/",
+        "new_chat_url": "https://www.doubao.com/chat/",
+        "requires_login": True,
+        "supports_web_search": True,
+        "icon": "🫘",
+    },
+    {
+        "id": "chatglm",
+        "name": "ChatGLM (智谱清言)",
+        "url": "https://chatglm.cn/main/alltoolsdetail",
+        "new_chat_url": "https://chatglm.cn/main/alltoolsdetail",
+        "requires_login": True,
+        "supports_web_search": True,
+        "icon": "🧠",
+    },
+    {
+        "id": "google_sge",
+        "name": "Google AI Overview",
+        "url": "https://www.google.com/search?q=",
+        "new_chat_url": "https://www.google.com/",
+        "requires_login": False,
+        "supports_web_search": True,
+        "icon": "🌐",
+    },
+    {
+        "id": "bing_copilot",
+        "name": "Bing Copilot",
+        "url": "https://www.bing.com/chat",
+        "new_chat_url": "https://www.bing.com/chat",
+        "requires_login": False,
+        "supports_web_search": True,
+        "icon": "💠",
+    },
+]
+
+
+class ExtTaskItem(BaseModel):
+    """A single task item for the browser extension."""
+    id: str
+    task_id: str
+    query_item_id: str
+    engine: str
+    query_text: str
+    project_id: str
+    project_name: str
+    target_domains: List[str] = []
+    config: dict = {}
+
+
+class ExtResultItem(BaseModel):
+    """A single result from the browser extension."""
+    task_id: str
+    query_item_id: str
+    engine: str
+    success: bool
+    response_text: str = ""
+    citations: List[dict] = []
+    error: Optional[str] = None
+    screenshot_base64: Optional[str] = None
+    response_time_ms: int = 0
+
+
+class ExtResultsBatch(BaseModel):
+    """Batch of results from the browser extension."""
+    results: List[ExtResultItem]
+
+
+class ExtHeartbeat(BaseModel):
+    """Heartbeat from the browser extension."""
+    version: str = "1.0.0"
+    browser: str = "chrome"
+    active_engines: List[str] = []
+    mode: str = "auto"  # auto or manual
+
+
+@router.get("/ext/engines")
+async def get_extension_engines(
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """
+    Get supported engine configs for the browser extension.
+    
+    Returns engine URLs, login requirements, and selectors
+    that the extension needs to operate.
+    """
+    return {
+        "engines": EXTENSION_ENGINE_CONFIG,
+        "version": "1.0.0",
+    }
+
+
+@router.get("/ext/tasks")
+async def get_extension_tasks(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Get pending crawl tasks for the current user's browser extension.
+    
+    Unlike the agent endpoint, this uses per-user JWT auth and only
+    returns tasks belonging to the user's workspace projects.
+    """
+    from sqlalchemy import and_
+    from app.models.crawler import CrawlResult
+    from app.models.project import QueryItem
+    
+    workspace_service = WorkspaceService(db)
+    
+    # Get user's workspaces
+    from app.models.workspace import Membership
+    membership_result = await db.execute(
+        select(Membership.workspace_id).where(Membership.user_id == current_user.id)
+    )
+    workspace_ids = [row[0] for row in membership_result]
+    
+    if not workspace_ids:
+        return {"tasks": [], "total_pending": 0}
+    
+    # Get projects in user's workspaces
+    project_result = await db.execute(
+        select(Project.id, Project.name, Project.target_domains)
+        .where(Project.workspace_id.in_(workspace_ids))
+    )
+    projects = {row[0]: {"name": row[1], "target_domains": row[2] or []} for row in project_result}
+    
+    if not projects:
+        return {"tasks": [], "total_pending": 0}
+    
+    # Get tasks that are running/pending and have uncompleted queries
+    # and belong to user's projects
+    task_result = await db.execute(
+        select(CrawlTask)
+        .where(
+            and_(
+                CrawlTask.project_id.in_(list(projects.keys())),
+                CrawlTask.status.in_(["running", "pending"]),
+                CrawlTask.failed_queries + CrawlTask.successful_queries < CrawlTask.total_queries,
+            )
+        )
+        .order_by(CrawlTask.priority.asc(), CrawlTask.created_at.asc())
+        .limit(5)
+    )
+    tasks = task_result.scalars().all()
+    
+    if not tasks:
+        return {"tasks": [], "total_pending": 0}
+    
+    # For each task, find unprocessed queries
+    ext_tasks = []
+    for task in tasks:
+        # Get already processed query IDs for this task
+        processed_result = await db.execute(
+            select(CrawlResult.query_item_id)
+            .where(CrawlResult.task_id == task.id)
+        )
+        processed_ids = {row[0] for row in processed_result}
+        
+        # Get unprocessed queries for this project
+        query_result = await db.execute(
+            select(QueryItem)
+            .where(QueryItem.project_id == task.project_id)
+            .order_by(QueryItem.position)
+        )
+        all_queries = query_result.scalars().all()
+        pending_queries = [q for q in all_queries if q.id not in processed_ids]
+        
+        project_info = projects.get(task.project_id, {"name": "Unknown", "target_domains": []})
+        
+        for query in pending_queries[:3]:
+            ext_tasks.append(ExtTaskItem(
+                id=f"{task.id}_{query.id}",
+                task_id=str(task.id),
+                query_item_id=str(query.id),
+                engine=task.engine,
+                query_text=query.query_text,
+                project_id=str(task.project_id),
+                project_name=project_info["name"],
+                target_domains=project_info["target_domains"],
+                config={
+                    "enable_web_search": True,
+                    "region": task.region or "cn",
+                    "language": task.language or "zh-CN",
+                },
+            ))
+        
+        if len(ext_tasks) >= 5:
+            break
+    
+    # Mark pending tasks as running (they're being picked up by extension)
+    from datetime import datetime, timezone
+    for task in tasks:
+        if task.status == "pending":
+            task.status = "running"
+            task.started_at = datetime.now(timezone.utc)
+    
+    await db.commit()
+    
+    return {
+        "tasks": [t.model_dump() for t in ext_tasks],
+        "total_pending": len(ext_tasks),
+    }
+
+
+@router.post("/ext/results")
+async def submit_extension_results(
+    data: ExtResultsBatch,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Submit crawl results from the browser extension.
+    
+    Supports batch submission. Each result is validated to belong
+    to one of the user's projects. Results are tagged with source='browser_extension'.
+    """
+    import base64
+    from datetime import datetime, timezone
+    from app.models.crawler import CrawlResult
+    from app.models.workspace import Membership
+    
+    # Get user's workspace IDs for validation
+    membership_result = await db.execute(
+        select(Membership.workspace_id).where(Membership.user_id == current_user.id)
+    )
+    workspace_ids = [row[0] for row in membership_result]
+    
+    # Get project IDs in user's workspaces
+    project_result = await db.execute(
+        select(Project.id).where(Project.workspace_id.in_(workspace_ids))
+    )
+    valid_project_ids = {row[0] for row in project_result}
+    
+    saved_count = 0
+    errors = []
+    
+    for item in data.results:
+        try:
+            # Verify task exists and belongs to user's project
+            task_result = await db.execute(
+                select(CrawlTask).where(CrawlTask.id == item.task_id)
+            )
+            task = task_result.scalar_one_or_none()
+            
+            if not task:
+                errors.append({"task_id": item.task_id, "error": "Task not found"})
+                continue
+            
+            if task.project_id not in valid_project_ids:
+                errors.append({"task_id": item.task_id, "error": "Task does not belong to your project"})
+                continue
+            
+            # Save screenshot if provided
+            screenshot_path = None
+            if item.screenshot_base64:
+                try:
+                    import os
+                    screenshot_dir = "./data/screenshots/ext"
+                    os.makedirs(screenshot_dir, exist_ok=True)
+                    
+                    filename = f"ext_{item.engine}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid_module.uuid4().hex[:8]}.png"
+                    screenshot_path = os.path.join(screenshot_dir, filename)
+                    
+                    with open(screenshot_path, 'wb') as f:
+                        f.write(base64.b64decode(item.screenshot_base64))
+                except Exception:
+                    pass
+            
+            # Create crawl result with browser_extension source
+            crawl_result = CrawlResult(
+                task_id=item.task_id,
+                query_item_id=item.query_item_id,
+                engine=item.engine,
+                raw_html="",
+                parsed_response={
+                    "response_text": item.response_text,
+                    "error": item.error,
+                },
+                citations=item.citations,
+                response_time_ms=item.response_time_ms,
+                screenshot_path=screenshot_path,
+                is_complete=item.success,
+                has_citations=len(item.citations) > 0,
+                source="browser_extension",
+            )
+            db.add(crawl_result)
+            
+            # Update task counters
+            if item.success:
+                task.successful_queries += 1
+            else:
+                task.failed_queries += 1
+            
+            # Check if task is complete
+            if task.successful_queries + task.failed_queries >= task.total_queries:
+                task.status = "completed"
+                task.completed_at = datetime.now(timezone.utc)
+            
+            saved_count += 1
+            
+        except Exception as e:
+            errors.append({"task_id": item.task_id, "error": str(e)})
+    
+    await db.commit()
+    
+    return {
+        "status": "ok",
+        "saved": saved_count,
+        "errors": errors,
+        "total_submitted": len(data.results),
+    }
+
+
+@router.post("/ext/heartbeat")
+async def extension_heartbeat(
+    data: ExtHeartbeat,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Receive heartbeat from the browser extension.
+    
+    Tracks which users have active extensions for admin monitoring.
+    """
+    from datetime import datetime, timezone
+    
+    # Store heartbeat info (in a simple way - could use Redis for ephemeral data)
+    # For now, update user metadata or log it
+    try:
+        from app.models.audit import AuditLog
+        log = AuditLog(
+            user_id=current_user.id,
+            action="extension_heartbeat",
+            resource_type="browser_extension",
+            new_values={
+                "version": data.version,
+                "browser": data.browser,
+                "active_engines": data.active_engines,
+                "mode": data.mode,
+            },
+        )
+        db.add(log)
+        await db.commit()
+    except Exception:
+        pass  # Non-critical
+    
+    return {
+        "status": "ok",
+        "server_time": datetime.now(timezone.utc).isoformat(),
+        "user_id": str(current_user.id),
+    }

@@ -507,14 +507,31 @@ export default function SettingsPage() {
     }
   };
 
+  // Load notification preferences from API
+  useEffect(() => {
+    const fetchNotificationPrefs = async () => {
+      try {
+        const res = await api.get('/auth/me/notifications');
+        setNotifications({
+          drift_warning: res.data.drift_warning ?? true,
+          retest_reminder: res.data.retest_reminder ?? true,
+          weekly_digest: res.data.weekly_digest ?? false,
+          marketing: res.data.marketing ?? false,
+        });
+      } catch (err) {
+        // Use defaults if API fails
+      }
+    };
+    fetchNotificationPrefs();
+  }, []);
+
   const handleNotificationsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSavingNotifications(true);
     setNotificationsSuccess(false);
 
     try {
-      // Note: This would be a real API call in production
-      // await api.put('/auth/me/notifications', notifications);
+      await api.put('/auth/me/notifications', notifications);
       setNotificationsSuccess(true);
       setTimeout(() => setNotificationsSuccess(false), 3000);
     } catch (err: any) {

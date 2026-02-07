@@ -1,0 +1,94 @@
+{
+  "manifest_version": 3,
+  "name": "FindableX - AI可见性助手",
+  "version": "1.0.0",
+  "description": "收集AI搜索引擎中的品牌可见性数据，自动同步到FindableX平台进行分析",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "permissions": [
+    "storage",
+    "tabs",
+    "alarms",
+    "activeTab",
+    "scripting",
+    "notifications",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "https://chat.deepseek.com/*",
+    "https://kimi.moonshot.cn/*",
+    "https://tongyi.aliyun.com/*",
+    "https://chatgpt.com/*",
+    "https://www.perplexity.ai/*",
+    "https://www.doubao.com/*",
+    "https://chatglm.cn/*",
+    "https://www.google.com/*",
+    "https://www.bing.com/*"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    },
+    "default_title": "FindableX AI助手"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://chat.deepseek.com/*"],
+      "js": ["content-scripts/injector.js", "content-scripts/engines/deepseek.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://kimi.moonshot.cn/*"],
+      "js": ["content-scripts/injector.js", "content-scripts/engines/kimi.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://tongyi.aliyun.com/*"],
+      "js": ["content-scripts/injector.js", "content-scripts/engines/qwen.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://chatgpt.com/*"],
+      "js": ["content-scripts/injector.js", "content-scripts/engines/chatgpt.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.perplexity.ai/*"],
+      "js": ["content-scripts/injector.js", "content-scripts/engines/perplexity.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.doubao.com/*"],
+      "js": ["content-scripts/injector.js", "content-scripts/engines/doubao.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://chatglm.cn/*"],
+      "js": ["content-scripts/injector.js", "content-scripts/engines/chatglm.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.google.com/*"],
+      "js": ["content-scripts/injector.js", "content-scripts/engines/google-sge.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.bing.com/chat*", "https://www.bing.com/search*"],
+      "js": ["content-scripts/injector.js", "content-scripts/engines/bing-copilot.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

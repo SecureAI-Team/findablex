@@ -11,6 +11,9 @@ from app.models.settings import SystemSetting, SystemSettingAudit
 from app.models.invite_code import InviteCode
 from app.models.calibration import CalibrationDictionary, CalibrationError
 from app.models.subscription import Plan, Subscription
+from app.models.notification import Notification
+from app.models.collaboration import Comment, ActivityEvent
+from app.models.webhook import Webhook, WebhookDelivery
 
 __all__ = [
     "User",
@@ -38,4 +41,9 @@ __all__ = [
     "CalibrationError",
     "Plan",
     "Subscription",
+    "Notification",
+    "Comment",
+    "ActivityEvent",
+    "Webhook",
+    "WebhookDelivery",
 ]

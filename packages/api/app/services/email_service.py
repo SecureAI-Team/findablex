@@ -39,9 +39,13 @@ class EmailService:
         
         # In production, send via SMTP or email service
         try:
+            import smtplib
+            from email.mime.text import MIMEText
+            from email.mime.multipart import MIMEMultipart
+            
             # Get email configuration from dynamic settings
             smtp_host = await dynamic.get("email.smtp_host")
-            smtp_port = await dynamic.get("email.smtp_port", 587)
+            smtp_port = int(await dynamic.get("email.smtp_port", 587))
             smtp_user = await dynamic.get("email.smtp_user")
             smtp_password = await dynamic.get("email.smtp_password")
             from_address = await dynamic.get("email.from_address", "noreply@findablex.com")
@@ -50,9 +54,30 @@ class EmailService:
                 logger.warning("SMTP not configured, email not sent")
                 return False
             
-            # TODO: Implement actual SMTP sending
-            # For now, just log
-            logger.info(f"[EMAIL] Would send to: {to_email}, subject: {subject}")
+            # Build MIME message
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"] = f"FindableX <{from_address}>"
+            msg["To"] = to_email
+            
+            if text_content:
+                msg.attach(MIMEText(text_content, "plain", "utf-8"))
+            msg.attach(MIMEText(html_content, "html", "utf-8"))
+            
+            # Send via SMTP
+            if smtp_port == 465:
+                # SSL connection
+                server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=30)
+            else:
+                # STARTTLS connection
+                server = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
+                server.starttls()
+            
+            server.login(smtp_user, smtp_password)
+            server.sendmail(from_address, [to_email], msg.as_string())
+            server.quit()
+            
+            logger.info(f"[EMAIL] Sent to: {to_email}, subject: {subject}")
             return True
             
         except Exception as e:

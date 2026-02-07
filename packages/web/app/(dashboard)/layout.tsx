@@ -17,10 +17,12 @@ import {
   CreditCard,
   Shield,
   BarChart3,
+  Code2,
 } from 'lucide-react';
 import { api, logout } from '@/lib/api';
 import { clsx } from 'clsx';
 import { analytics } from '@/lib/analytics';
+import NotificationBell from '@/components/NotificationBell';
 
 const navigation = [
   { name: '概览', href: '/dashboard', icon: Home },
@@ -29,6 +31,7 @@ const navigation = [
   { name: 'AI 研究', href: '/research', icon: Bot },
   { name: '团队', href: '/team', icon: Users },
   { name: '订阅', href: '/subscription', icon: CreditCard },
+  { name: '开发者', href: '/developer', icon: Code2 },
   { name: '设置', href: '/settings', icon: Settings },
 ];
 
@@ -47,6 +50,7 @@ function getPageName(pathname: string): string {
     '/research': 'research',
     '/team': 'team',
     '/subscription': 'subscription',
+    '/developer': 'developer',
     '/settings': 'settings',
     '/admin/users': 'admin_users',
     '/admin/analytics': 'admin_analytics',
@@ -261,7 +265,8 @@ export default function DashboardLayout({
               <Menu className="w-6 h-6" />
             </button>
             
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
+              <NotificationBell />
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-primary-500/20 rounded-full flex items-center justify-center">
                   <User className="w-4 h-4 text-primary-400" />

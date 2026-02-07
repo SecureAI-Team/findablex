@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FindableX AI助手</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="app" class="app">
+
+    <!-- Login View: just email + password -->
+    <div id="login-view" class="view">
+      <div class="login-header">
+        <span class="logo-icon">🔍</span>
+        <span class="logo-text">FindableX</span>
+      </div>
+      <p class="login-subtitle">登录以开始自动采集</p>
+      <div class="form-group">
+        <input type="email" id="email" placeholder="邮箱" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <input type="password" id="password" placeholder="密码" autocomplete="current-password">
+      </div>
+      <div class="form-group checkbox-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="remember-me" checked>
+          <span>记住我</span>
+        </label>
+      </div>
+      <div id="login-error" class="error" style="display:none"></div>
+      <button id="login-btn" class="btn btn-primary btn-full">登录</button>
+      <!-- Hidden advanced: long-press logo to reveal API URL -->
+      <div id="advanced-section" class="advanced-section" style="display:none">
+        <div class="form-group">
+          <input type="url" id="api-url" placeholder="服务器地址（高级）" value="">
+        </div>
+      </div>
+    </div>
+
+    <!-- Main View: single toggle + one stat line + engine icons -->
+    <div id="main-view" class="view" style="display:none">
+      <!-- Top bar: name + toggle -->
+      <div class="top-bar">
+        <div class="top-left">
+          <span class="logo-icon-sm">🔍</span>
+          <span class="brand">FindableX</span>
+        </div>
+        <label class="toggle-switch" title="开启/关闭自动采集">
+          <input type="checkbox" id="auto-toggle">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <!-- User + Stats -->
+      <div class="info-bar">
+        <span class="greeting" id="greeting">Hi</span>
+        <span class="stat-line" id="stat-line">今日: -- 完成, -- 失败</span>
+      </div>
+
+      <!-- Engine Icons Row -->
+      <div class="engine-row" id="engine-row">
+        <!-- Populated by JS: compact icon row with green/gray dots -->
+      </div>
+
+      <!-- Toast area -->
+      <div id="toast-area" class="toast-area"></div>
+
+      <!-- Footer -->
+      <div class="footer">
+        <button id="logout-btn" class="btn btn-ghost btn-sm">退出登录</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

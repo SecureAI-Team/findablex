@@ -131,7 +131,8 @@ export default function AnalyticsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [days, setDays] = useState(30);
-  const [activeTab, setActiveTab] = useState<'traffic' | 'funnel' | 'events'>('traffic');
+  const [activeTab, setActiveTab] = useState<'traffic' | 'funnel' | 'events' | 'business'>('traffic');
+  const [businessMetrics, setBusinessMetrics] = useState<any>(null);
 
   // 获取用户时区偏移（小时）
   const getTzOffset = () => {
@@ -147,15 +148,17 @@ export default function AnalyticsPage() {
     const tzOffset = getTzOffset();
     
     try {
-      const [funnelRes, eventsRes, trafficRes] = await Promise.all([
+      const [funnelRes, eventsRes, trafficRes, businessRes] = await Promise.all([
         api.get(`/analytics/funnel?days=${days}&tz_offset=${tzOffset}`),
         api.get(`/analytics/events?days=${days}&tz_offset=${tzOffset}`),
         api.get(`/analytics/traffic?days=${days}&tz_offset=${tzOffset}`),
+        api.get(`/analytics/business?days=${days}`).catch(() => ({ data: null })),
       ]);
       
       setFunnelMetrics(funnelRes.data);
       setEventCounts(eventsRes.data);
       setTrafficMetrics(trafficRes.data);
+      setBusinessMetrics(businessRes.data);
     } catch (err: any) {
       if (err.response?.status === 403) {
         setError('权限不足：仅管理员可查看分析数据');
@@ -632,6 +635,20 @@ export default function AnalyticsPage() {
             事件明细
           </span>
         </button>
+        <button
+          onClick={() => setActiveTab('business')}
+          className={cn(
+            "px-4 py-2 rounded-md text-sm font-medium transition-all",
+            activeTab === 'business'
+              ? "bg-primary-500 text-white"
+              : "text-slate-400 hover:text-white hover:bg-slate-700/50"
+          )}
+        >
+          <span className="flex items-center gap-2">
+            <BarChart3 className="w-4 h-4" />
+            业务健康
+          </span>
+        </button>
       </div>
 
       {/* Error */}
@@ -777,6 +794,136 @@ export default function AnalyticsPage() {
                   overallRate={funnelMetrics.conversion_funnel.overall_rate}
                   color="purple"
                 />
+              </div>
+            </>
+          )}
+
+          {/* Business Tab */}
+          {activeTab === 'business' && businessMetrics && (
+            <>
+              {/* Revenue Metrics */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                <MetricCard
+                  title="月经常性收入 (MRR)"
+                  value={`¥${businessMetrics.revenue.mrr.toLocaleString()}`}
+                  icon={BarChart3}
+                  color="primary"
+                />
+                <MetricCard
+                  title="付费用户"
+                  value={businessMetrics.revenue.paid_users}
+                  icon={Users}
+                  color="emerald"
+                />
+                <MetricCard
+                  title="ARPU"
+                  value={`¥${businessMetrics.revenue.arpu}`}
+                  icon={TrendingUp}
+                  color="purple"
+                />
+                <MetricCard
+                  title="付费转化率"
+                  value={businessMetrics.revenue.paid_conversion_rate}
+                  unit="%"
+                  icon={Target}
+                  color="blue"
+                />
+              </div>
+
+              {/* Growth & Retention */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                {/* Growth */}
+                <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
+                  <h3 className="text-lg font-semibold text-white mb-4">增长指标</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-slate-700/30 rounded-lg">
+                      <div className="text-sm text-slate-400 mb-1">总用户数</div>
+                      <div className="text-2xl font-bold text-white">
+                        {businessMetrics.growth.total_users}
+                      </div>
+                    </div>
+                    <div className="p-4 bg-slate-700/30 rounded-lg">
+                      <div className="text-sm text-slate-400 mb-1">新增注册</div>
+                      <div className="text-2xl font-bold text-emerald-400">
+                        {businessMetrics.growth.new_registrations}
+                      </div>
+                    </div>
+                    <div className="p-4 bg-slate-700/30 rounded-lg">
+                      <div className="text-sm text-slate-400 mb-1">激活用户</div>
+                      <div className="text-2xl font-bold text-blue-400">
+                        {businessMetrics.growth.activated_count}
+                      </div>
+                    </div>
+                    <div className="p-4 bg-slate-700/30 rounded-lg">
+                      <div className="text-sm text-slate-400 mb-1">激活率</div>
+                      <div className="text-2xl font-bold text-purple-400">
+                        {businessMetrics.growth.activation_rate}%
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Retention */}
+                <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
+                  <h3 className="text-lg font-semibold text-white mb-4">留存率</h3>
+                  <div className="space-y-4">
+                    {Object.entries(businessMetrics.retention || {}).map(([key, value]) => {
+                      const label = key === 'd1' ? '次日留存' : key === 'd7' ? '7日留存' : '30日留存';
+                      const numValue = Number(value);
+                      return (
+                        <div key={key}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm text-slate-300">{label}</span>
+                            <span className="text-sm font-bold text-white">{numValue}%</span>
+                          </div>
+                          <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-primary-500 rounded-full transition-all"
+                              style={{ width: `${Math.max(numValue, 2)}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  {/* Plan Distribution */}
+                  <h4 className="text-sm font-medium text-slate-300 mt-6 mb-3">用户分布</h4>
+                  <div className="flex gap-3">
+                    {Object.entries(businessMetrics.segments?.by_plan || {}).map(([plan, count]) => (
+                      <div key={plan} className="flex-1 p-3 bg-slate-700/30 rounded-lg text-center">
+                        <div className="text-lg font-bold text-white">{String(count)}</div>
+                        <div className="text-xs text-slate-400 capitalize">{plan}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Feature Usage */}
+              <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
+                <h3 className="text-lg font-semibold text-white mb-4">功能使用率</h3>
+                <div className="space-y-3">
+                  {(businessMetrics.feature_usage || []).map((feature: any) => (
+                    <div key={feature.event} className="flex items-center gap-4">
+                      <div className="w-32 text-sm text-slate-300">{feature.feature}</div>
+                      <div className="flex-1">
+                        <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary-500 rounded-full transition-all"
+                            style={{ width: `${Math.max(feature.usage_rate, 1)}%` }}
+                          />
+                        </div>
+                      </div>
+                      <div className="text-sm text-slate-400 w-16 text-right">
+                        {feature.usage_rate}%
+                      </div>
+                      <div className="text-sm text-white w-16 text-right">
+                        {feature.unique_users} 人
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </>
           )}

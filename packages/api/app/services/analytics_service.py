@@ -580,6 +580,409 @@ class AnalyticsService:
         
         return '其他来源'
     
+    async def get_business_metrics(
+        self,
+        days: int = 30,
+    ) -> Dict[str, Any]:
+        """
+        Get comprehensive business health metrics.
+        
+        Includes:
+        - Revenue: MRR, paid users, ARPU
+        - Retention: D1/D7/D30 rates, active user retention
+        - Feature usage: usage by module
+        - User health: combined activity scores
+        - Customer LTV
+        """
+        from sqlalchemy import distinct
+        from app.models.user import User
+        from app.models.subscription import Subscription, PLANS
+        from app.models.project import Project
+        from app.models.run import Run
+        
+        now = datetime.now(timezone.utc)
+        start_date = now - timedelta(days=days)
+        
+        # ===== Revenue Metrics =====
+        
+        # Get all active paid subscriptions
+        sub_result = await self.db.execute(
+            select(Subscription).where(
+                Subscription.status == "active",
+                Subscription.plan_code != "free",
+            )
+        )
+        paid_subscriptions = list(sub_result.scalars().all())
+        
+        total_mrr = 0.0
+        for sub in paid_subscriptions:
+            plan_data = PLANS.get(sub.plan_code, {})
+            if sub.billing_cycle == "yearly":
+                monthly = plan_data.get("price_yearly", 0) / 12
+            else:
+                monthly = plan_data.get("price_monthly", 0)
+            total_mrr += monthly
+        
+        paid_user_count = len(paid_subscriptions)
+        arpu = round(total_mrr / paid_user_count, 2) if paid_user_count > 0 else 0
+        
+        # Total users
+        total_users_result = await self.db.execute(
+            select(func.count(User.id)).where(User.is_active == True)
+        )
+        total_users = total_users_result.scalar() or 0
+        
+        paid_conversion_rate = round(
+            paid_user_count / total_users * 100, 1
+        ) if total_users > 0 else 0
+        
+        # ===== Retention Metrics =====
+        
+        # Users who registered in last N days and came back
+        retention_periods = [1, 7, 30]
+        retention_rates = {}
+        
+        for period in retention_periods:
+            # Users registered exactly 'period' days ago (give 1 day window)
+            reg_start = now - timedelta(days=period + 1)
+            reg_end = now - timedelta(days=period)
+            
+            # Get users registered in that window
+            reg_result = await self.db.execute(
+                select(User.id).where(
+                    and_(
+                        User.created_at >= reg_start,
+                        User.created_at <= reg_end,
+                    )
+                )
+            )
+            registered_users = [row[0] for row in reg_result]
+            
+            if not registered_users:
+                retention_rates[f"d{period}"] = 0
+                continue
+            
+            # Check which of these users were active after registration
+            active_result = await self.db.execute(
+                select(distinct(AuditLog.user_id)).where(
+                    and_(
+                        AuditLog.user_id.in_(registered_users),
+                        AuditLog.resource_type == "event",
+                        AuditLog.action.in_(["login", "page_view"]),
+                        AuditLog.created_at >= reg_end,
+                    )
+                )
+            )
+            active_users = [row[0] for row in active_result]
+            
+            rate = round(len(active_users) / len(registered_users) * 100, 1)
+            retention_rates[f"d{period}"] = rate
+        
+        # ===== Feature Usage =====
+        
+        # Count usage of key features in the last N days
+        feature_events = [
+            ("project_created", "创建项目"),
+            ("report_viewed", "查看报告"),
+            ("report_exported", "导出报告"),
+            ("report_shared", "分享报告"),
+            ("calibration_reviewed", "口径复核"),
+            ("compare_report_viewed", "对比报告"),
+            ("retest_triggered", "复测"),
+            ("team_member_invited", "邀请成员"),
+        ]
+        
+        feature_usage = []
+        for event_type, label in feature_events:
+            count_result = await self.db.execute(
+                select(func.count(AuditLog.id)).where(
+                    and_(
+                        AuditLog.action == event_type,
+                        AuditLog.resource_type == "event",
+                        AuditLog.created_at >= start_date,
+                    )
+                )
+            )
+            count = count_result.scalar() or 0
+            
+            users_result = await self.db.execute(
+                select(func.count(distinct(AuditLog.user_id))).where(
+                    and_(
+                        AuditLog.action == event_type,
+                        AuditLog.resource_type == "event",
+                        AuditLog.user_id.isnot(None),
+                        AuditLog.created_at >= start_date,
+                    )
+                )
+            )
+            unique_users = users_result.scalar() or 0
+            
+            usage_rate = round(unique_users / total_users * 100, 1) if total_users > 0 else 0
+            
+            feature_usage.append({
+                "feature": label,
+                "event": event_type,
+                "total_count": count,
+                "unique_users": unique_users,
+                "usage_rate": usage_rate,
+            })
+        
+        # Sort by usage rate
+        feature_usage.sort(key=lambda x: x["usage_rate"], reverse=True)
+        
+        # ===== Registration & Activation Rates =====
+        
+        # New registrations in period
+        new_users_result = await self.db.execute(
+            select(func.count(User.id)).where(
+                User.created_at >= start_date,
+            )
+        )
+        new_registrations = new_users_result.scalar() or 0
+        
+        # Activated users (completed first crawl in period)
+        activated_result = await self.db.execute(
+            select(func.count(distinct(AuditLog.user_id))).where(
+                and_(
+                    AuditLog.action == "first_crawl_completed",
+                    AuditLog.resource_type == "event",
+                    AuditLog.created_at >= start_date,
+                )
+            )
+        )
+        activated_count = activated_result.scalar() or 0
+        activation_rate = round(
+            activated_count / new_registrations * 100, 1
+        ) if new_registrations > 0 else 0
+        
+        # ===== User Segmentation =====
+        
+        # By plan
+        plan_distribution = {"free": 0, "pro": 0, "enterprise": 0}
+        all_subs_result = await self.db.execute(select(Subscription))
+        for sub in all_subs_result.scalars().all():
+            plan_distribution[sub.plan_code] = plan_distribution.get(sub.plan_code, 0) + 1
+        
+        # Count free users (those without any subscription)
+        plan_distribution["free"] = max(0, total_users - sum(
+            v for k, v in plan_distribution.items() if k != "free"
+        ))
+        
+        return {
+            "revenue": {
+                "mrr": round(total_mrr, 2),
+                "paid_users": paid_user_count,
+                "arpu": arpu,
+                "paid_conversion_rate": paid_conversion_rate,
+            },
+            "retention": retention_rates,
+            "feature_usage": feature_usage,
+            "growth": {
+                "total_users": total_users,
+                "new_registrations": new_registrations,
+                "activation_rate": activation_rate,
+                "activated_count": activated_count,
+            },
+            "segments": {
+                "by_plan": plan_distribution,
+            },
+            "period_days": days,
+        }
+
+    async def get_business_metrics(
+        self,
+        days: int = 30,
+    ) -> Dict[str, Any]:
+        """
+        Get key business health metrics.
+        
+        Includes:
+        - MRR (Monthly Recurring Revenue)
+        - Paid user count and ARPU
+        - Registration/Activation/Paid conversion rates
+        - 7-day and 30-day retention rates
+        - Feature usage rates
+        - User health scores
+        """
+        from sqlalchemy import distinct
+        from collections import defaultdict
+        
+        now = datetime.now(timezone.utc)
+        start_date = now - timedelta(days=days)
+        
+        # ---- Revenue Metrics ----
+        mrr = 0.0
+        paid_users = 0
+        arpu = 0.0
+        
+        try:
+            from app.models.subscription import Subscription, PLANS
+            sub_result = await self.db.execute(
+                select(Subscription).where(
+                    and_(
+                        Subscription.status == "active",
+                        Subscription.plan_code != "free",
+                    )
+                )
+            )
+            active_subs = list(sub_result.scalars().all())
+            paid_users = len(active_subs)
+            
+            for sub in active_subs:
+                plan = PLANS.get(sub.plan_code, {})
+                if sub.billing_cycle == "yearly":
+                    # Convert yearly to monthly
+                    mrr += plan.get("price_yearly", 0) / 12
+                else:
+                    mrr += plan.get("price_monthly", 0)
+            
+            arpu = round(mrr / paid_users, 2) if paid_users > 0 else 0
+        except Exception:
+            pass
+        
+        # ---- Registration & Activation Metrics ----
+        from app.models.user import User
+        
+        total_users_result = await self.db.execute(
+            select(func.count(User.id))
+        )
+        total_users = total_users_result.scalar() or 0
+        
+        new_users_result = await self.db.execute(
+            select(func.count(User.id)).where(
+                User.created_at >= start_date
+            )
+        )
+        new_users = new_users_result.scalar() or 0
+        
+        # ---- Retention Metrics ----
+        # Day 1 retention: users who logged in the day after registration
+        # Day 7 retention: users who logged in 7 days after registration
+        # Day 30 retention: users who logged in 30 days after registration
+        retention_data = {"day_1": 0, "day_7": 0, "day_30": 0}
+        
+        try:
+            # Get users registered in the period
+            users_result = await self.db.execute(
+                select(User.id, User.created_at).where(
+                    User.created_at >= start_date - timedelta(days=30)
+                )
+            )
+            registered_users = list(users_result)
+            
+            if registered_users:
+                # Get all login events for these users
+                user_ids = [u.id for u in registered_users]
+                login_events_result = await self.db.execute(
+                    select(AuditLog.user_id, AuditLog.created_at).where(
+                        and_(
+                            AuditLog.action == "login",
+                            AuditLog.resource_type == "event",
+                            AuditLog.user_id.in_(user_ids),
+                        )
+                    )
+                )
+                login_events = list(login_events_result)
+                
+                # Group logins by user
+                user_logins: Dict[str, set] = defaultdict(set)
+                for event in login_events:
+                    if event.user_id and event.created_at:
+                        day = event.created_at.date()
+                        user_logins[str(event.user_id)].add(day)
+                
+                day1_retained = 0
+                day7_retained = 0
+                day30_retained = 0
+                cohort_size = len(registered_users)
+                
+                for user in registered_users:
+                    reg_date = user.created_at.date() if user.created_at else None
+                    if not reg_date:
+                        continue
+                    user_login_days = user_logins.get(str(user.id), set())
+                    
+                    if reg_date + timedelta(days=1) in user_login_days:
+                        day1_retained += 1
+                    if reg_date + timedelta(days=7) in user_login_days:
+                        day7_retained += 1
+                    if reg_date + timedelta(days=30) in user_login_days:
+                        day30_retained += 1
+                
+                if cohort_size > 0:
+                    retention_data = {
+                        "day_1": round(day1_retained / cohort_size * 100, 1),
+                        "day_7": round(day7_retained / cohort_size * 100, 1),
+                        "day_30": round(day30_retained / cohort_size * 100, 1),
+                    }
+        except Exception:
+            pass
+        
+        # ---- Feature Usage Rates ----
+        feature_usage: Dict[str, int] = {}
+        try:
+            feature_events = [
+                "report_viewed", "report_exported", "report_shared",
+                "calibration_reviewed", "compare_report_viewed",
+                "retest_triggered", "team_member_invited",
+                "project_created",
+            ]
+            
+            for event_name in feature_events:
+                count_result = await self.db.execute(
+                    select(func.count(distinct(AuditLog.user_id))).where(
+                        and_(
+                            AuditLog.action == event_name,
+                            AuditLog.resource_type == "event",
+                            AuditLog.created_at >= start_date,
+                        )
+                    )
+                )
+                feature_usage[event_name] = count_result.scalar() or 0
+        except Exception:
+            pass
+        
+        # ---- User Segmentation ----
+        industry_distribution: Dict[str, int] = {}
+        plan_distribution: Dict[str, int] = {}
+        
+        try:
+            industry_result = await self.db.execute(
+                select(User.industry, func.count(User.id))
+                .where(User.industry.isnot(None))
+                .group_by(User.industry)
+            )
+            industry_distribution = dict(industry_result.all())
+            
+            from app.models.subscription import Subscription
+            plan_result = await self.db.execute(
+                select(Subscription.plan_code, func.count(Subscription.id))
+                .group_by(Subscription.plan_code)
+            )
+            plan_distribution = dict(plan_result.all())
+        except Exception:
+            pass
+        
+        return {
+            "revenue": {
+                "mrr": round(mrr, 2),
+                "paid_users": paid_users,
+                "arpu": arpu,
+            },
+            "users": {
+                "total": total_users,
+                "new_this_period": new_users,
+                "paid_conversion_rate": round(paid_users / total_users * 100, 1) if total_users > 0 else 0,
+            },
+            "retention": retention_data,
+            "feature_usage": feature_usage,
+            "segmentation": {
+                "by_industry": industry_distribution,
+                "by_plan": plan_distribution,
+            },
+            "period_days": days,
+        }
+    
     def _get_bot_display_name(self, bot_type: str) -> str:
         """
         将 bot 类型转换为显示名称

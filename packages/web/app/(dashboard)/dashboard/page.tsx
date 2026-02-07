@@ -98,7 +98,7 @@ export default function DashboardPage() {
     );
   }
 
-  // Empty state for new users
+  // Empty state for new users - redirect to onboarding
   if (!stats || stats.projects_count === 0) {
     return (
       <div className="space-y-8">
@@ -109,24 +109,53 @@ export default function DashboardPage() {
           <p className="mt-1 text-slate-400">开始您的 GEO 可见性之旅</p>
         </div>
 
-        {/* Onboarding Card */}
+        {/* Guided Onboarding Card */}
         <div className="bg-gradient-to-br from-primary-500/20 via-primary-600/10 to-accent-500/20 rounded-2xl border border-primary-500/30 p-8 text-center">
           <div className="w-16 h-16 bg-primary-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
             <Sparkles className="w-8 h-8 text-primary-400" />
           </div>
           <h2 className="font-display text-2xl font-bold text-white mb-3">
-            创建您的第一个项目
+            3 步开启 GEO 体检
           </h2>
           <p className="text-slate-300 max-w-md mx-auto mb-6">
-            GEO 体检帮助您了解品牌在 AI 生成式引擎中的可见性。创建一个项目，导入您的查询数据，获取详细的分析报告。
+            选择行业、创建项目、自动加载模板 — 只需 3 步即可看到您品牌在 AI 搜索中的表现
           </p>
-          <Link
-            href="/projects/new"
-            className="inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white px-6 py-3 rounded-lg font-medium transition-all hover:scale-105"
-          >
-            <Plus className="w-5 h-5" />
-            创建项目
-          </Link>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link
+              href="/onboarding"
+              className="inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white px-6 py-3 rounded-lg font-medium transition-all hover:scale-105"
+            >
+              <Sparkles className="w-5 h-5" />
+              开始引导设置
+            </Link>
+            <Link
+              href="/projects/new"
+              className="inline-flex items-center gap-2 text-slate-300 hover:text-white border border-slate-600 hover:border-slate-500 px-6 py-3 rounded-lg font-medium transition-all"
+            >
+              <Plus className="w-5 h-5" />
+              直接创建项目
+            </Link>
+          </div>
+        </div>
+
+        {/* Demo Report Link */}
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-accent-500/10 rounded-xl flex items-center justify-center flex-shrink-0">
+              <BarChart3 className="w-6 h-6 text-accent-400" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-display text-lg font-semibold text-white">查看样例报告</h3>
+              <p className="text-sm text-slate-400 mt-1">先看看一份完整的 GEO 体检报告长什么样</p>
+            </div>
+            <Link
+              href="/sample-report"
+              className="inline-flex items-center gap-2 text-primary-400 hover:text-primary-300 text-sm font-medium"
+            >
+              免费体验
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
         </div>
 
         {/* Getting Started Steps */}
@@ -134,9 +163,9 @@ export default function DashboardPage() {
           <h3 className="font-display text-lg font-semibold text-white mb-4">快速开始指南</h3>
           <div className="space-y-4">
             {[
-              { step: 1, title: '创建项目', desc: '设置项目名称和目标域名' },
-              { step: 2, title: '导入数据', desc: '上传 AI 搜索结果（CSV、JSON 或粘贴）' },
-              { step: 3, title: '查看报告', desc: '获取健康度评分和优化建议' },
+              { step: 1, title: '选择行业', desc: '选择您的行业，自动加载最适合的查询模板' },
+              { step: 2, title: '创建项目', desc: '设置项目名称和目标域名，一键创建' },
+              { step: 3, title: '查看报告', desc: '自动生成 GEO 体检报告，获取优化建议' },
             ].map((item) => (
               <div key={item.step} className="flex items-start gap-4">
                 <div className="w-8 h-8 rounded-full bg-primary-500/20 flex items-center justify-center flex-shrink-0">

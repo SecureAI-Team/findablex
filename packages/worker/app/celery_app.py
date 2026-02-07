@@ -15,6 +15,7 @@ celery_app = Celery(
         "app.tasks.score",
         "app.tasks.report",
         "app.tasks.crawl",
+        "app.tasks.scheduled",
     ],
 )
 
@@ -48,13 +49,35 @@ celery_app.conf.update(
 
 # Beat schedule for periodic tasks
 celery_app.conf.beat_schedule = {
+    # Daily drift detection at 2 AM UTC
     "check-drift-daily": {
-        "task": "app.tasks.score.detect_drift_all",
+        "task": "app.tasks.scheduled.check_drift_all",
         "schedule": crontab(hour=2, minute=0),
     },
+    # Cleanup old data at 3 AM UTC
     "cleanup-old-results": {
-        "task": "app.tasks.cleanup.cleanup_old_results",
+        "task": "app.tasks.scheduled.cleanup_old_results",
         "schedule": crontab(hour=3, minute=0),
+    },
+    # Auto-checkup for projects at 4 AM UTC (daily)
+    "auto-checkup-projects": {
+        "task": "app.tasks.scheduled.auto_checkup_projects",
+        "schedule": crontab(hour=4, minute=0),
+    },
+    # Reset monthly usage on the 1st of each month at midnight UTC
+    "reset-monthly-usage": {
+        "task": "app.tasks.scheduled.reset_monthly_usage",
+        "schedule": crontab(day_of_month=1, hour=0, minute=0),
+    },
+    # Check subscription expiry daily at 8 AM UTC
+    "check-subscription-expiry": {
+        "task": "app.tasks.scheduled.check_subscription_expiry",
+        "schedule": crontab(hour=8, minute=0),
+    },
+    # Send retest reminders weekly on Monday at 9 AM UTC
+    "send-retest-reminders": {
+        "task": "app.tasks.scheduled.send_retest_reminders",
+        "schedule": crontab(day_of_week=1, hour=9, minute=0),
     },
 }
 

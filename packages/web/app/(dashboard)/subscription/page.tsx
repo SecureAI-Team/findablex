@@ -110,9 +110,10 @@ export default function SubscriptionPage() {
     fetchData();
   }, []);
 
+  const [paymentMethod, setPaymentMethod] = useState<'wechat' | 'alipay' | 'manual'>('wechat');
+
   const handleUpgrade = async (planCode: string) => {
     if (planCode === 'enterprise') {
-      // Redirect to contact page for enterprise
       window.location.href = '/contact';
       return;
     }
@@ -121,14 +122,30 @@ export default function SubscriptionPage() {
     setError('');
 
     try {
-      const res = await api.post('/subscriptions/upgrade', {
-        target_plan: planCode,
+      // Try the new payment API first
+      const res = await api.post('/payment/orders', {
+        plan_code: planCode,
         billing_cycle: billingCycle,
-        payment_method: 'manual',
+        payment_method: paymentMethod,
       });
-      setUpgradeResult(res.data);
+      setUpgradeResult({
+        ...res.data,
+        plan_name: res.data.plan_name,
+        amount: res.data.amount,
+        payment_data: res.data.payment_data,
+      });
     } catch (err: any) {
-      setError(err.response?.data?.detail || '升级请求失败');
+      // Fallback to old upgrade endpoint
+      try {
+        const res = await api.post('/subscriptions/upgrade', {
+          target_plan: planCode,
+          billing_cycle: billingCycle,
+          payment_method: paymentMethod,
+        });
+        setUpgradeResult(res.data);
+      } catch (fallbackErr: any) {
+        setError(fallbackErr.response?.data?.detail || '升级请求失败');
+      }
     } finally {
       setIsUpgrading(false);
     }
@@ -330,6 +347,30 @@ export default function SubscriptionPage() {
         >
           年付 <span className="text-xs text-green-400 ml-1">省20%</span>
         </button>
+      </div>
+
+      {/* Payment Method Selection */}
+      <div className="flex items-center justify-center gap-3 mb-8">
+        <span className="text-sm text-slate-400">支付方式:</span>
+        {[
+          { id: 'wechat' as const, name: '微信支付', icon: '💬' },
+          { id: 'alipay' as const, name: '支付宝', icon: '🔵' },
+          { id: 'manual' as const, name: '对公转账', icon: '🏦' },
+        ].map((method) => (
+          <button
+            key={method.id}
+            onClick={() => setPaymentMethod(method.id)}
+            className={cn(
+              'px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2',
+              paymentMethod === method.id
+                ? 'bg-primary-500/10 border border-primary-500/50 text-primary-400'
+                : 'border border-slate-700 text-slate-400 hover:text-white hover:border-slate-600'
+            )}
+          >
+            <span>{method.icon}</span>
+            {method.name}
+          </button>
+        ))}
       </div>
 
       {error && (
